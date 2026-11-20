@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#212121">
+  <title>DARK IA</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><div class="brand-mark">D</div><span>DARK IA</span></div>
+      <button class="new-chat" id="newChat">＋ <span>Nuevo chat</span></button>
+      <div class="side-label">CONVERSACIONES</div>
+      <div id="chatList" class="chat-list"></div>
+      <div class="side-bottom">
+        <div class="user-chip"><div class="avatar">D</div><div><b>DARK IA</b><small>Asistente personal</small></div></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Abrir menú">☰</button>
+        <div class="mobile-brand">DARK IA <span class="online-dot"></span></div>
+        <div class="top-spacer"></div>
+        <button class="icon-btn" id="clearBtn" title="Borrar conversación actual" aria-label="Borrar conversación">⌫</button>
+      </header>
+
+      <section class="conversation" id="conversation">
+        <div class="welcome" id="welcome">
+          <div class="welcome-logo">D</div>
+          <h1>¿En qué puedo ayudarte?</h1>
+          <p>Soy DARK IA. Puedo conversar, programar, explicar y ayudarte a crear proyectos.</p>
+          <div class="suggestions">
+            <button class="suggestion" data-prompt="Enséñame HTML desde cero con un ejemplo."><b>⌘ Programación</b><span>Enséñame HTML desde cero</span></button>
+            <button class="suggestion" data-prompt="Ayúdame a planificar una aplicación web moderna."><b>✧ Crear un proyecto</b><span>Planificar una aplicación</span></button>
+            <button class="suggestion" data-prompt="Explícame un tema difícil paso a paso y con ejemplos."><b>▤ Aprender</b><span>Explicar algo paso a paso</span></button>
+            <button class="suggestion" data-prompt="Dame ideas originales para un proyecto tecnológico."><b>◇ Ideas</b><span>Inspiración para crear</span></button>
+          </div>
+        </div>
+        <div id="messages" class="messages"></div>
+      </section>
+
+      <footer class="composer-wrap">
+        <form id="chatForm" class="composer">
+          <textarea id="prompt" rows="1" maxlength="12000" placeholder="Escribe un mensaje a DARK IA..." aria-label="Escribe un mensaje"></textarea>
+          <button class="send-btn" id="sendBtn" type="submit" aria-label="Enviar">↑</button>
+        </form>
+        <div class="disclaimer">DARK IA puede cometer errores. Comprueba la información importante.</div>
+      </footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
