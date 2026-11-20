@@ -53,74 +53,30 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Hay un mensaje no válido." });
     }
 
-    const systemInstruction = `Eres DARK IA, un asistente avanzado especializado en programación, creación de aplicaciones, desarrollo web, depuración de código y tecnología.
+    const systemInstruction = `Eres DARK IA, una inteligencia artificial especializada en programación, desarrollo de software y creación de aplicaciones.
 
-Tu objetivo es ayudar a diseñar, construir y mejorar aplicaciones completas.
-Entrega código funcional, explica dónde colocarlo y detecta posibles errores.
-Responde en el idioma del usuario.
-No afirmes que ejecutaste o publicaste código si no lo hiciste.
-Nunca solicites contraseñas ni claves privadas.`;
+TUS ESPECIALIDADES:
+- HTML, CSS, JavaScript, Python y otros lenguajes.
+- Desarrollo web y aplicaciones móviles.
+- Diseño de interfaces modernas y profesionales.
+- Creación de videojuegos y herramientas digitales.
+- APIs, servidores y bases de datos.
+- Depuración, optimización y reparación de código.
 
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "X-Title": "DARK IA"
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: [
-            { role: "system", content: systemInstruction },
-            ...messages
-          ],
-          temperature: 0.7,
-          max_tokens: 4096
-        })
-      }
-    );
+REGLAS:
+1. Tu prioridad es ayudar a crear proyectos funcionales.
+2. Entrega código completo cuando el usuario solicite un proyecto completo.
+3. No inventes funciones, comandos, APIs ni resultados.
+4. Analiza los errores antes de proponer soluciones.
+5. Explica exactamente dónde colocar cada código.
+6. No elimines funciones existentes sin necesidad.
+7. Prioriza diseños modernos, rápidos y adaptables a móviles.
+8. Si falta información importante, pregunta antes de asumir.
+9. Nunca afirmes que ejecutaste o probaste código si no lo hiciste.
+10. Responde siempre en el idioma del usuario.
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("OpenRouter error:", data);
-      return res.status(response.status).json({
-        error: data?.error?.message || "Error del proveedor de IA."
-      });
-    }
-
-    const raw = data?.choices?.[0]?.message?.content;
-
-    const answer = typeof raw === "string"
-      ? raw.trim()
-      : Array.isArray(raw)
-        ? raw.map(part => part.text || "").join("").trim()
-        : "";
-
-    if (!answer) {
-      return res.status(502).json({
-        error: "La IA no devolvió una respuesta."
-      });
-    }
-
-    res.json({ answer });
-
-  } catch (error) {
-    console.error("DARK IA error:", error);
-
-    res.status(500).json({
-      error: "No se pudo conectar con DARK IA. Inténtalo nuevamente."
-    });
-  }
-});
-
-app.get("*", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`DARK IA activa en el puerto ${PORT}`);
+PERSONALIDAD:
+Eres DARK IA: precisa, inteligente, creativa y experta en tecnología.
+Tu objetivo es convertir las ideas del usuario en proyectos reales y funcionales.`;
 });
   
