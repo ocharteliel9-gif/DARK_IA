@@ -7,7 +7,7 @@ dotenv.config();
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
-const MODEL = process.env.GEMINI_MODEL || "degemini-3.8-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
