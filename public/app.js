@@ -886,3 +886,30 @@ $("clearBtn").onclick = () => {
 
 $("menuBtn").onclick = () => {
   $("sidebar").classList.toggle("op
+  
+$("menuBtn").onclick = () => {
+  $("sidebar").classList.toggle("open");
+};
+
+$("openProjects").onclick = openProjects;
+$("closeProjects").onclick = closeProjects;
+
+$("addProjectFile").onclick = createManualFile;
+$("saveProject").onclick = saveProjectNow;
+$("previewProject").onclick = buildPreview;
+$("refreshPreview").onclick = refreshPreview;
+
+document.querySelectorAll(".suggestion").forEach(button => {
+  button.addEventListener("click", () => {
+    send(button.dataset.prompt || "");
+  });
+});
+
+// Seleccionar el primer archivo del Studio si existe.
+if (projectFiles.length > 0) {
+  activeFileId = projectFiles[0].id;
+}
+
+// Inicializar la aplicación.
+renderAll();
+  
