@@ -1,48 +1,52 @@
-# Plan de evolución de DARK IA
+# Plan de evolución de DARK IA — versión 1.0
 
 ## Objetivo y alcance
 
-Transformar el DARK IA existente —cliente estático, servidor Express y proveedor OpenRouter— sin reemplazar lo que ya funciona. Implementar por etapas y validar cada capacidad con evidencia. No publicar botones ni anunciar flujos que requieran una API, credencial, servicio de almacenamiento o paquete del sistema que no esté efectivamente configurado.
+Ampliar la aplicación existente (cliente estático, Express, OpenRouter y Studio) sin reemplazar las capacidades ya probadas. Esta iteración añade una experiencia visual más cuidada, ajustes de personalidad y emojis, atribución visible del modelo elegido y realmente usado, saludo exacto solicitado y búsqueda opcional en APIs públicas de GitHub y Stack Overflow.
 
-El proyecto contiene hoy `server.js`, `public/index.html`, `public/app.js`, `public/styles.css` y `package.json`; los chats se guardan en `localStorage` del navegador. No hay infraestructura de cuentas, base de datos, carga de archivos ni pruebas automatizadas configuradas. Mantendremos el arranque actual (`npm start`) y la API existente mientras se modulariza el código.
+La privacidad requiere autenticación OAuth real, sesión verificada en el servidor y persistencia con autorización por propietario en cada consulta. Se implementará el flujo de Google y el esquema de datos con cierre seguro: si faltan `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `SESSION_SECRET` o `DATABASE_URL`, el frontend solo mostrará que el acceso todavía no está configurado y no abrirá el chat ni leerá el historial antiguo de `localStorage`. Se documentará la configuración requerida. No se presentará el login como operativo ni se podrá probar la separación entre usuarios hasta disponer de credenciales y PostgreSQL persistente.
+
+Los historiales, proyectos y preferencias antiguos de `localStorage` no se importan: anteriormente podían pertenecer al usuario del dispositivo y mezclarlos con una identidad sería inseguro. Las preferencias y proyectos locales nuevos se guardan bajo claves por ID de cuenta. Las conversaciones serán remotas y propiedad del usuario autenticado. El código fuente del repositorio continúa siendo público; la privacidad de chats no oculta el código del repositorio.
 
 ## Diseño
 
-**Movimiento:** interfaz de consola ciberpunk premium, oscura y de alto contraste. **Principios:** legibilidad primero; rojo como señal de acción, no como fondo invasivo; estados visibles y honestos; composición adaptable al móvil. **Paleta:** negro carbón, grises azulados y rojo neón propio, reservando rojo brillante para marca, CTA, foco y errores. **Distribución:** conversación ocupa el espacio principal; navegación de chats colapsable; compositor fijo y utilizable con teclado virtual; paneles secundarios accesibles sin cubrir mensajes. **Motivos:** halo rojo tenue alrededor del emblema, líneas finas como circuito y estados luminosos discretos. **Interacción:** respuestas, carga, error y cancelación con estados explícitos; sin botones decorativos. **Animación:** breve y reducida bajo `prefers-reduced-motion`; nada que retrase la lectura. **Tipografía:** sistema sans para texto y mono para código. **Esencia:** asistente de trabajo técnico, directo, privado y verificable; personalidad firme, útil y transparente. El logotipo conserva la “D” existente, rediseñada como marca geométrica roja.
+Se conserva el lenguaje visual cyberpunk premium negro/rojo del producto y se lo refina con una navegación compacta tipo centro de control, tarjetas de acción y microestados claros. La referencia a Manus 2.0 Max se limita a una jerarquía limpia y controles pulidos; no se copiarán su marca, logotipo ni recursos. Principios: legibilidad primero, rojo para acciones y estados, privacidad/estado de conexión visibles, y diseño táctil adaptable. El área central prioriza conversación y compositor; la barra lateral agrupa chats, Studio y ajustes. Animaciones breves respetan `prefers-reduced-motion`. Se mantiene tipografía sans del sistema con mono para código. La marca propia conserva la D geométrica roja; esencia: asistente técnico directo, personalizable y honesto; rasgos: firme, útil y verificable. Microcopy: «Tu espacio, tus conversaciones.» y «El modelo usado aparece en cada respuesta.»
 
 ## Enfoque de implementación
 
-1. **Estabilizar y medir:** proteger archivos de entorno en Git, comprobar rutas, corregir regresiones y crear verificaciones automatizables para frontend/servidor. Preservar `/api/status`, `/api/modes` y `/api/chat` donde sea posible.
-2. **Chat real y usable:** interfaz roja/negra adaptable; mantener chats y mensajes; selector de modelos solo para los modelos permitidos por el backend; Markdown/código seguro; estados de carga/error, reintento, detención y prevención de envíos duplicados. No descartar el mensaje del usuario si el proveedor falla. Los chats locales no se presentarán como cuenta sincronizada.
-3. **Persistencia y cuentas:** separación por capas para autenticación Google, autorización en servidor, sesiones HTTP-only y almacenamiento persistente. La opción de producción requiere `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, URL/callback autorizados, una base PostgreSQL persistente (`DATABASE_URL`) y una clave de sesión. No habilitar login hasta que se configuren y validen esos valores. Todas las consultas deben derivar el propietario del usuario autenticado, nunca de un `userId` confiado desde el cliente.
-4. **Contenido multimodal:** validar tipo, tamaño y contenido antes del procesamiento; archivos temporales, no ejecutables, limpieza garantizada y aislamiento por propietario al incorporar cuentas. Activar únicamente formatos cuyos extractores se instalen y prueben. Imágenes requieren un modelo OpenRouter compatible con visión. Video requiere procesamiento real de fotogramas/audio, herramientas del sistema y un modelo compatible; se documentarán sus límites de duración/tamaño y no se afirmará que funciona sin esos requisitos.
-5. **Seguridad y herramientas:** límites de tasa, validación del servidor, salida escapada, manejo uniforme de errores, controles para descargas/cargas, lista permitida de modelos y moderación verificable. Búsqueda web, ejecución de herramientas o moderación externa solo se activarán al disponer de un proveedor y credenciales apropiados. Los prompts internos son defensa complementaria, no barrera de autorización.
-6. **Programación avanzada en el Studio:** conectar el modo coding a la API; permitir importar archivos de texto con allowlist y límites locales; compartir explícitamente un contexto acotado con el proveedor para depurar, explicar, revisar seguridad o proponer pruebas; añadir validación sintáctica sin ejecución para JS/TS/JSX/TSX/JSON, historial de versiones local y edición por Tab. La vista previa permanece en iframe sandbox con CSP de red bloqueada. No se implementará terminal ni ejecución arbitraria en el servidor sin sandbox aislada real.
-7. **Verificación y entrega:** comprobaciones de sintaxis, API y persistencia; pruebas de aislamiento de usuarios una vez disponible la autenticación; pruebas móviles si hay un entorno de navegador disponible. Integrar los cambios remotos preservando el historial y subir únicamente cambios comprobados a `main`.
+1. Mantener el punto de entrada `server.js`, pruebas, endpoints existentes y Studio, actualizar el plan/ToDo y preservar cambios anteriores.
+2. Autenticación Google con flujo Authorization Code/OIDC, `state` y `nonce` aleatorios, intercambio de código desde el servidor y verificación del ID token con la biblioteca oficial de Google. Rotar sesión tras el login, cookies HTTP-only con `Secure; SameSite=None` para HTTPS mediante `COOKIE_SECURE`/producción y `Lax` solo para HTTP local, token CSRF para mutaciones. En caso de configuración parcial o ausencia de DB, cerrar el acceso; no crear modo de demostración que simule identidad.
+3. Persistencia en PostgreSQL de usuarios Google y conversaciones. La sesión usa `connect-pg-simple`. API de chats para listar/crear/actualizar/borrar; todas las consultas restringen por el ID obtenido de la sesión, nunca por un ID de propietario recibido del cliente. `GET /api/me` expone únicamente perfil básico y estado/configuración, y devuelve token CSRF. Sin configuración, la app responde cerrado con 503; una sesión no autenticada recibe 401 cuando OAuth está configurado. Sin despliegue con credenciales/DB no se afirmará aislamiento probado.
+4. Frontend con portada de inicio de sesión, estados auténticos de configuración, perfil/cierre de sesión, experiencia oscura de calidad, selector de modelo, preferencias y cambios de cuenta. Cada chat conserva el modelo con que fue creado; cambiar el modelo inicia un chat nuevo. La respuesta muestra el modelo real devuelto por OpenRouter, que puede diferir del router seleccionado.
+5. Personalidad y nivel de emojis se validan con listas permitidas en backend y se incorporan como instrucciones al prompt. Para un mensaje compuesto únicamente por «hola» (ignorando mayúsculas y espacios exteriores), el servidor devuelve exactamente: `Hola soy una IA creada por vip modifier un creador de aplicaciones para el rendimiento no tan conocido`.
+6. Modelos: eliminar del catálogo expuesto las opciones que pueden tener costo. Mantener `openrouter/free` como selección de costo cero, con aviso visible de cuotas, disponibilidad y rendimiento variables. No usar fallbacks a modelos de pago ni ofrecer acceso gratuito que eluda tarifas. La llamada a inferencia continúa requiriendo `OPENROUTER_API_KEY` del titular del despliegue.
+7. Fuentes: búsqueda opcional desde el servidor contra GitHub REST (búsqueda de repositorios públicos) y Stack Exchange API (preguntas de Stack Overflow); validar longitud, timeout, tamaño, cuotas y URLs de salida. Mostrar resultados con título, fragmento/metadata, dominio y enlace. Solo se incorpora a la solicitud IA cuando el usuario activa la opción; se delimita como contenido externo no confiable. Los resultados no garantizan verdad y su disponibilidad/cuota pertenece a los proveedores.
+8. Mantener el Studio previo y sus límites; al iniciar sesión, almacenar su estado y preferencias con clave por usuario en el dispositivo. El Studio todavía no es una copia en nube ni cuenta con el aislamiento durable de la base de datos.
+9. Verificar sintaxis, pruebas HTTP/seguridad y ausencia de filtración de información. Probar el flujo completo multiusuario solo cuando el usuario configure OAuth y PostgreSQL. Revisar los cambios y sincronización GitHub autorizados, sin exponer secretos.
 
-## Decisiones técnicas y dependencias
+## Decisiones técnicas, dependencias y límites
 
-- Reutilizar Node.js/Express y el cliente estático del repositorio; añadir módulos bajo `src/` para configuración, rutas, middleware y servicios, conservando `server.js` como punto de entrada compatible.
-- Mantener OpenRouter del lado del servidor; ninguna clave se incrusta en `public/`. El modelo por defecto seguirá configurable mediante variables de entorno y las opciones expuestas serán una lista permitida.
-- No hay claves de Google, URL de base de datos ni proveedor de búsqueda/moderación especificados en el repositorio. La autenticación y el almacenamiento multiusuario requieren configuración explícita antes de poder demostrarse.
-- El repositorio `DARK_IA` es público. Ningún prompt ni cambio de interfaz puede impedir que otras personas lean o clonen el código público. Para confidencialidad del código se necesitaría cambiar la visibilidad del repositorio, acción que no haré sin autorización específica. La protección técnica se enfocará en secretos, datos, sesiones y permisos.
-- Servicios “gratuitos” pueden imponer cuotas, suspensión o requerir pago. No se asumirá gratuidad ilimitada ni se guardarán datos privados en almacenamiento efímero del proveedor de hosting.
+- Reutilizar Node.js 20+, Express 4 y el frontend estático. Añadir `express-session`, `connect-pg-simple`, `pg` y `google-auth-library`; crear el esquema SQL idempotente durante el arranque seguro de `src/auth.js`.
+- Mantener claves de proveedor solo en servidor. La lista de modelos es una allowlist y cualquier elemento fuera de ella se rechaza.
+- Variables de autenticación necesarias: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `SESSION_SECRET` (mínimo 32 bytes aleatorios) y `DATABASE_URL` persistente; configurar en Google Cloud el callback exacto y un origen HTTPS de producción. Proveer secretos en el host del despliegue, no en Git. Para inferencia: `OPENROUTER_API_KEY`. Las llamadas a GitHub/Stack Overflow usan APIs públicas, por tanto quedan sujetas a sus cuotas y disponibilidad.
+- No se guarda sesión ni conversación en el sistema de archivos efímero. No se migra el historial preexistente. Un error de DB o sesión nunca cae a almacenamiento sin aislar.
+- El repositorio `DARK_IA` es público. No afirmar que se puede esconder su código con OAuth; un cambio de visibilidad requeriría autorización específica.
+- La prueba local de esta iteración no puede validar el acceso real Google, cookies en hosting ni privacidad entre dos cuentas mientras no se configuren los proveedores y la base persistente.
 
-## Estructura prevista
+## Estructura del proyecto
 
 ```text
-server.js                 # entrada y escucha HTTP compatible
-src/config.js             # configuración y validación de entorno
-src/code-validator.js     # comprobación sintáctica estática, nunca ejecución
-src/routes/               # endpoints de chat, estado, auth y archivos
-src/middleware/           # validación, sesión, límites y autorización
-src/services/              # proveedor IA, persistencia y extracción de archivos
-src/db/                    # conexión, esquema/migraciones y consultas con dueño
-public/index.html          # estructura y controles de interfaz
-public/app.js              # interfaz de conversación y estado cliente
-public/styles.css          # identidad visual y adaptación móvil
-test/                      # pruebas unitarias e integración
-docs/                      # configuración externa y límites operativos
+server.js                  # Express, endpoints, OAuth, validación y proveedor IA
+src/code-validator.js      # análisis sintáctico sin ejecutar código
+src/auth.js                # helpers de sesión, Google OIDC, CSRF y usuario actual
+src/chat-policy.js         # preferencias permitidas y saludo exacto
+src/models.js              # catálogo y filtrado de modelos gratuitos
+src/search.js              # consultas limitadas a GitHub y Stack Overflow
+public/index.html          # puerta de acceso y estructura de chat/ajustes/Studio
+public/app.js              # cuenta, chats remotos, preferencias, modelos y fuentes
+public/styles.css          # sistema visual propio y adaptación móvil
+test/                      # pruebas unitarias y HTTP; OAuth/DB externa condicionada
+docs/INTEGRATIONS.md       # variables, configuración y límites operativos
 ```
 
-La modularización se hará incrementalmente y solo donde reduzca acoplamiento; no se migrarán datos privados a una base nueva sin tener un proveedor persistente configurado.
+El nuevo soporte debe ser incremental. No se incluyen ejecución de código de usuario, bases de datos efímeras, scraping de páginas, fallback a modelos pagos ni almacenamiento local compartido.

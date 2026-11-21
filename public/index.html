@@ -1,83 +1,92 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090d16">
-  <title>DARK IA 3.0</title>
+  <meta name="description" content="DARK IA 1.0: asistente conversacional personalizable con chats asociados a tu cuenta.">
+  <title>DARK IA 1.0</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <main class="login-gate" id="loginGate" aria-labelledby="loginTitle">
+    <div class="login-orbit login-orbit-one"></div>
+    <div class="login-orbit login-orbit-two"></div>
+    <section class="login-card">
+      <div class="login-brand"><span class="brand-mark">D</span><span>DARK IA <small>VERSIÓN 1.0</small></span></div>
+      <div class="login-signal"><i></i><span>ESPACIO PERSONAL</span></div>
+      <h1 id="loginTitle">Inicia sesión.<br><em>Entra a DARK IA.</em></h1>
+      <p class="login-copy">El acceso por cuenta requiere Google, una sesión segura y PostgreSQL configurados en el servidor. La aplicación no abrirá el chat hasta validar esos servicios.</p>
+      <button class="google-signin" id="signInBtn" type="button" disabled>
+        <span class="google-g" aria-hidden="true">G</span>
+        <span>Continuar con Google</span>
+        <span class="google-arrow" aria-hidden="true">↗</span>
+      </button>
+      <p class="login-status" id="loginStatus" role="status">Comprobando el acceso seguro…</p>
+      <p class="login-security"><span aria-hidden="true">⌁</span> Acceso cerrado hasta validar Google y PostgreSQL</p>
+      <p class="login-legacy-note">Por seguridad, no se importan los chats locales anteriores.</p>
+    </section>
+    <div class="login-version">DARK IA <span>1.0</span></div>
+  </main>
 
-  <!-- CHAT PRINCIPAL -->
-  <div class="app">
+  <div class="app" hidden>
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="brand-mark">D</div>
-        <span>DARK IA <small>VERSION 3.0</small></span>
+        <span>DARK IA <small>VERSIÓN 1.0</small></span>
       </div>
 
-      <button class="new-chat" id="newChat">
-        ＋ <span>Nuevo chat</span>
-      </button>
+      <button class="new-chat" id="newChat" type="button"><span class="nav-icon">＋</span><span>Nuevo chat</span></button>
+      <button class="project-open-btn" id="openProjects" type="button"><span class="nav-icon">&lt;/&gt;</span><span>Entorno de proyectos</span></button>
 
-      <button class="project-open-btn" id="openProjects">
-        &lt;/&gt; <span>Entorno de proyectos</span>
-      </button>
-
-      <div class="side-label">CONVERSACIONES</div>
-      <input id="searchChats" class="chat-search" type="search" placeholder="Buscar conversaciones..." aria-label="Buscar conversaciones">
+      <div class="side-label">TU ESPACIO · CHATS</div>
+      <label class="search-wrap"><span aria-hidden="true">⌕</span><input id="searchChats" class="chat-search" type="search" placeholder="Buscar conversaciones…" aria-label="Buscar conversaciones"></label>
       <div id="chatList" class="chat-list"></div>
 
       <div class="side-bottom">
         <div class="user-chip">
-          <div class="avatar">D</div>
-          <div>
-            <b>DARK IA</b>
-            <small>Asistente personal</small>
-          </div>
+          <div class="avatar" id="userAvatar">D</div>
+          <div class="user-identity"><b id="userName">DARK IA</b><small id="userEmail">Cuenta Google</small></div>
+        </div>
+        <div class="side-account-actions">
+          <button class="side-setting-btn" id="openSettings" type="button"><span aria-hidden="true">⚙</span> Ajustes</button>
+          <button class="side-setting-btn logout-btn" id="logoutBtn" type="button"><span aria-hidden="true">↗</span> Cerrar sesión</button>
         </div>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
-        <button class="icon-btn menu-btn" id="menuBtn">☰</button>
-        <div class="mobile-brand">DARK IA <span class="online-dot"></span></div>
+        <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Abrir menú">☰</button>
+        <div class="mobile-brand">DARK IA <span class="version-chip">1.0</span></div>
+        <div class="top-context"><span class="online-dot"></span><span>ASISTENTE PERSONAL</span></div>
         <div class="top-spacer"></div>
-        <button class="icon-btn" id="clearBtn" title="Borrar conversación">⌫</button>
+        <button class="icon-btn mobile-settings" id="mobileSettings" type="button" aria-label="Abrir ajustes">⚙</button>
+        <button class="icon-btn" id="clearBtn" type="button" title="Borrar conversación" aria-label="Borrar conversación">⌫</button>
       </header>
 
       <section class="conversation" id="conversation">
         <div class="welcome" id="welcome">
           <div class="welcome-logo">D</div>
-          <h1>¿En qué puedo ayudarte?</h1>
-          <p>Soy DARK IA 3.0. Puedo conversar, programar y ayudarte a crear proyectos.</p>
+          <div class="welcome-kicker">DARK IA <span>·</span> ESPACIO PRIVADO</div>
+          <h1>¿Qué vamos a crear hoy?</h1>
+          <p>Conversaciones tuyas, opciones claras y el modelo utilizado a la vista.</p>
 
           <div class="suggestions">
-            <button class="suggestion" data-prompt="Enséñame HTML desde cero con un ejemplo.">
-              <b>⌘ Programación</b>
-              <span>Aprender a programar</span>
+            <button class="suggestion" type="button" data-prompt="Enséñame HTML desde cero con un ejemplo.">
+              <b><span>⌘</span> Programación</b><span>Aprender a programar</span>
             </button>
-
-            <button class="suggestion" data-prompt="Ayúdame a planificar una aplicación web moderna.">
-              <b>✧ Crear un proyecto</b>
-              <span>Diseñar una aplicación</span>
+            <button class="suggestion" type="button" data-prompt="Ayúdame a planificar una aplicación web moderna.">
+              <b><span>✧</span> Crear un proyecto</b><span>Diseñar una aplicación</span>
             </button>
-
-            <button class="suggestion" data-prompt="Explícame un tema difícil paso a paso y con ejemplos.">
-              <b>▤ Aprender</b>
-              <span>Explicaciones detalladas</span>
+            <button class="suggestion" type="button" data-prompt="Explícame un tema difícil paso a paso y con ejemplos.">
+              <b><span>▤</span> Aprender</b><span>Explicaciones detalladas</span>
             </button>
-
-            <button class="suggestion" data-prompt="Dame ideas originales para un proyecto tecnológico.">
-              <b>◇ Ideas</b>
-              <span>Inspiración tecnológica</span>
+            <button class="suggestion" type="button" data-prompt="Dame ideas originales para un proyecto tecnológico.">
+              <b><span>◇</span> Ideas</b><span>Inspiración tecnológica</span>
             </button>
           </div>
         </div>
-
         <div id="messages" class="messages"></div>
       </section>
 
@@ -85,163 +94,94 @@
         <div class="chat-tools">
           <label class="mode-picker" for="modeSelect">Modo
             <select id="modeSelect" aria-label="Seleccionar modo">
-              <option value="general">General</option>
-              <option value="coding">Programación</option>
-              <option value="knowledge">Aprendizaje</option>
-              <option value="gaming">Gaming</option>
+              <option value="general">General</option><option value="coding">Programación</option><option value="knowledge">Aprendizaje</option><option value="gaming">Gaming</option>
             </select>
           </label>
           <label class="model-picker" for="modelSelect">Modelo
-            <select id="modelSelect" aria-label="Seleccionar modelo">
-              <option value="openrouter/free">OpenRouter Free</option>
-            </select>
+            <select id="modelSelect" aria-label="Seleccionar modelo"><option value="openrouter/free">OpenRouter Free · automático</option></select>
           </label>
+          <label class="sources-toggle" for="useSources" title="Al activarlo, el texto del mensaje se consulta en las APIs públicas de GitHub y Stack Overflow."><input id="useSources" type="checkbox"><span class="toggle-track"><i></i></span><span>Fuentes en vivo</span></label>
           <button class="stop-btn" id="stopBtn" type="button" hidden>■ Detener</button>
         </div>
         <form id="chatForm" class="composer">
-          <textarea
-            id="prompt"
-            rows="1"
-            maxlength="12000"
-            placeholder="Escribe un mensaje a DARK IA..."
-            aria-label="Escribe un mensaje"
-          ></textarea>
-
-          <button class="send-btn" id="sendBtn" type="submit">↑</button>
+          <textarea id="prompt" rows="1" maxlength="12000" placeholder="Escribe un mensaje a DARK IA…" aria-label="Escribe un mensaje"></textarea>
+          <button class="send-btn" id="sendBtn" type="submit" aria-label="Enviar mensaje">↑</button>
         </form>
-
-        <div class="disclaimer">
-          DARK IA puede cometer errores. Comprueba la información importante.
-        </div>
+        <div class="disclaimer">Los modelos gratuitos tienen límites y disponibilidad variables. Comprueba la información importante.</div>
       </footer>
     </main>
   </div>
 
-  <!-- STUDIO DE PROGRAMACIÓN -->
+  <dialog class="preferences-dialog" id="preferencesDialog" aria-labelledby="preferencesTitle">
+    <div class="preferences-head">
+      <div><span class="settings-kicker">TU ESPACIO</span><h2 id="preferencesTitle">Ajustes del asistente</h2></div>
+      <button id="closePreferences" type="button" aria-label="Cerrar ajustes">×</button>
+    </div>
+    <p class="preferences-intro">Elige el estilo de respuesta. Estas preferencias se guardan en este navegador por cuenta.</p>
+    <label class="preference-field" for="personalitySelect"><span>Personalidad</span>
+      <select id="personalitySelect">
+        <option value="professional">Profesional</option>
+        <option value="cheerful">Alegre</option>
+        <option value="direct">Fría y directa</option>
+        <option value="friendly">Amable</option>
+        <option value="creative">Creativa</option>
+        <option value="teacher">Docente</option>
+      </select>
+    </label>
+    <label class="preference-field" for="emojiLevelSelect"><span>Uso de emojis</span>
+      <select id="emojiLevelSelect">
+        <option value="none">Ninguno</option>
+        <option value="low">Bajo</option>
+        <option value="medium">Medio</option>
+        <option value="always">Usar siempre</option>
+      </select>
+    </label>
+    <div class="privacy-note"><span>◈</span><p>Las respuestas se personalizan en el servidor. Los proyectos del Studio siguen guardándose solo en este dispositivo.</p></div>
+    <button class="preferences-save" id="savePreferences" type="button">Guardar ajustes</button>
+  </dialog>
+
   <section class="project-workspace" id="projectWorkspace" hidden>
-
     <header class="project-topbar">
-      <div class="project-brand">
-        <span>
-          DARK IA STUDIO
-          <small>DEVELOPMENT ENVIRONMENT 3.0</small>
-        </span>
-      </div>
-
+      <div class="project-brand"><span>DARK IA STUDIO <small>DEVELOPMENT ENVIRONMENT · 1.0</small></span></div>
       <div class="project-top-actions">
-        <button class="project-action" id="addProjectFile">
-          ＋ Archivo
-        </button>
-
+        <button class="project-action" id="addProjectFile" type="button">＋ Archivo</button>
         <label class="project-action upload-project-label" for="projectFileUpload">↑ Importar</label>
         <input id="projectFileUpload" type="file" multiple accept=".html,.htm,.css,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.json,.md,.txt,.yaml,.yml,.sql,.java,.go,.rs" hidden>
-
-        <button class="project-action" id="validateProject" type="button">
-          ✓ Validar
-        </button>
-
-        <button class="project-action" id="historyProject" type="button">
-          ◷ Historial
-        </button>
-
-        <button class="project-action" id="saveProject">
-          Guardar
-        </button>
-
-        <button class="project-action" id="previewProject">
-          ▶ Vista previa
-        </button>
-
-        <button class="project-action" id="closeProjects">
-          ✕ Salir
-        </button>
+        <button class="project-action" id="validateProject" type="button">✓ Validar</button>
+        <button class="project-action" id="historyProject" type="button">◷ Historial</button>
+        <button class="project-action" id="saveProject" type="button">Guardar</button>
+        <button class="project-action" id="previewProject" type="button">▶ Vista previa</button>
+        <button class="project-action" id="closeProjects" type="button">✕ Salir</button>
       </div>
     </header>
-
     <div class="project-layout">
-
-      <!-- EXPLORADOR -->
       <aside class="file-explorer">
-        <div class="explorer-heading">
-          EXPLORADOR
-        </div>
-
-        <div class="project-name">
-          MI PROYECTO
-        </div>
-
-        <div class="project-file-list" id="projectFileList">
-          <div class="empty-files">
-            Todavía no hay archivos.
-            <small>Agrega uno para comenzar.</small>
-          </div>
-        </div>
+        <div class="explorer-heading">EXPLORADOR</div><div class="project-name">MI PROYECTO</div>
+        <div class="project-file-list" id="projectFileList"><div class="empty-files">Todavía no hay archivos.<small>Agrega uno para comenzar.</small></div></div>
       </aside>
-
-      <!-- EDITOR -->
       <section class="project-editor">
-        <div class="editor-heading">
-          <span id="activeFileName">Sin archivo seleccionado</span>
-          <span id="editorLanguage">EDITOR</span>
-        </div>
-
-        <textarea
-          id="projectCodeEditor"
-          spellcheck="false"
-          autocapitalize="off"
-          autocomplete="off"
-          autocorrect="off"
-          placeholder="// Tu código aparecerá aquí..."
-        ></textarea>
-
-        <div class="editor-footer">
-          <span id="editorLineCount">1 línea</span>
-          <span>DARK IA EDITOR</span>
-        </div>
-
+        <div class="editor-heading"><span id="activeFileName">Sin archivo seleccionado</span><span id="editorLanguage">EDITOR</span></div>
+        <textarea id="projectCodeEditor" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="// Tu código aparecerá aquí…"></textarea>
+        <div class="editor-footer"><span id="editorLineCount">1 línea</span><span>DARK IA EDITOR · 1.0</span></div>
         <div class="project-assist-bar" aria-label="Acciones de programación">
-          <button type="button" data-assist="debug">Depurar</button>
-          <button type="button" data-assist="explain">Explicar</button>
-          <button type="button" data-assist="review">Revisar seguridad</button>
-          <button type="button" data-assist="tests">Crear pruebas</button>
+          <button type="button" data-assist="debug">Depurar</button><button type="button" data-assist="explain">Explicar</button><button type="button" data-assist="review">Revisar seguridad</button><button type="button" data-assist="tests">Crear pruebas</button>
           <span id="projectContextSize">Al pulsar una acción, el código se envía al proveedor de IA seleccionado.</span>
         </div>
       </section>
-
-      <!-- VISTA PREVIA -->
       <section class="project-preview">
-        <div class="preview-heading">
-          VISTA PREVIA
-          <button class="project-action" id="refreshPreview">
-            ↻ Actualizar
-          </button>
-        </div>
-
-        <div class="preview-content">
-          <iframe
-            id="projectPreviewFrame"
-            title="Vista previa del proyecto"
-            sandbox="allow-scripts"
-            referrerpolicy="no-referrer"
-            srcdoc="<!DOCTYPE html><html><body style='font-family:Arial;padding:20px;color:#222'><h2>DARK IA STUDIO</h2><p>Tu proyecto aparecerá aquí.</p></body></html>"
-          ></iframe>
-        </div>
+        <div class="preview-heading">VISTA PREVIA <button class="project-action" id="refreshPreview" type="button">↻ Actualizar</button></div>
+        <div class="preview-content"><iframe id="projectPreviewFrame" title="Vista previa del proyecto" sandbox="allow-scripts" referrerpolicy="no-referrer" srcdoc="<!DOCTYPE html><html><body style='font-family:Arial;padding:20px;color:#222'><h2>DARK IA STUDIO</h2><p>Tu proyecto aparecerá aquí.</p></body></html>"></iframe></div>
       </section>
-
     </div>
   </section>
 
   <dialog class="history-dialog" id="projectHistoryDialog" aria-labelledby="projectHistoryTitle">
-    <div class="history-dialog-head">
-      <h2 id="projectHistoryTitle">Historial del proyecto</h2>
-      <button id="closeProjectHistory" type="button" aria-label="Cerrar historial">×</button>
-    </div>
+    <div class="history-dialog-head"><h2 id="projectHistoryTitle">Historial del proyecto</h2><button id="closeProjectHistory" type="button" aria-label="Cerrar historial">×</button></div>
     <p>Instantáneas guardadas en este navegador. No se sincronizan con GitHub.</p>
     <div id="projectHistoryList" class="history-list"></div>
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-
   <script src="/app.js"></script>
 </body>
 </html>

@@ -1,37 +1,55 @@
 const $ = id => document.getElementById(id);
 
 // ======================================
-// DARK IA 3.0 - CONFIGURACIÓN
+// DARK IA 1.0 - CONFIGURACIÓN
 // ======================================
 
-const STORAGE_CHATS = "darkia_chats";
-const STORAGE_PROJECT = "darkia_project_3";
-const STORAGE_PROJECT_HISTORY = "darkia_project_history_1";
-const STORAGE_MODEL = "darkia_model";
-const STORAGE_MODE = "darkia_mode";
+let STORAGE_PROJECT = "";
+let STORAGE_PROJECT_HISTORY = "";
+let STORAGE_MODEL = "";
+let STORAGE_MODE = "";
+let STORAGE_PREFERENCES = "";
 
 const messagesEl = $("messages");
 const welcomeEl = $("welcome");
 const promptEl = $("prompt");
 
-let chats = loadJSON(STORAGE_CHATS, []);
-let activeId = chats[0]?.id || null;
+let chats = [];
+let activeId = null;
 let busy = false;
 let activeController = null;
+let authSession = null;
+let authUser = null;
+let freeModelIds = new Set(["openrouter/free"]);
+let settings = { personality: "professional", emojiLevel: "low" };
+const pendingChatSaves = new Map();
+const chatWriteChains = new Map();
+const deletingChatIds = new Set();
 
-let projectFiles = loadJSON(STORAGE_PROJECT, []);
-let projectHistory = loadJSON(STORAGE_PROJECT_HISTORY, []);
+let projectFiles = [];
+let projectHistory = [];
 let activeFileId = null;
 
-if (!Array.isArray(projectFiles)) projectFiles = [];
-projectFiles = projectFiles.filter(file => file && typeof file.id === "string" && typeof file.name === "string" && typeof file.content === "string");
-if (!Array.isArray(projectHistory)) projectHistory = [];
-projectHistory = projectHistory
-  .filter(snapshot => snapshot && typeof snapshot.id === "string" && typeof snapshot.savedAt === "string" && Array.isArray(snapshot.files))
-  .map(snapshot => ({
-    ...snapshot,
-    files: snapshot.files.filter(file => file && typeof file.id === "string" && typeof file.name === "string" && typeof file.content === "string")
-  }));
+function setAccountStorage(userId) {
+  const prefix = `darkia_v1_${userId}`;
+  STORAGE_PROJECT = `${prefix}_studio`;
+  STORAGE_PROJECT_HISTORY = `${prefix}_studio_history`;
+  STORAGE_MODEL = `${prefix}_model`;
+  STORAGE_MODE = `${prefix}_mode`;
+  STORAGE_PREFERENCES = `${prefix}_preferences`;
+
+  projectFiles = loadJSON(STORAGE_PROJECT, []);
+  projectHistory = loadJSON(STORAGE_PROJECT_HISTORY, []);
+  if (!Array.isArray(projectFiles)) projectFiles = [];
+  projectFiles = projectFiles.filter(file => file && typeof file.id === "string" && typeof file.name === "string" && typeof file.content === "string");
+  if (!Array.isArray(projectHistory)) projectHistory = [];
+  projectHistory = projectHistory
+    .filter(snapshot => snapshot && typeof snapshot.id === "string" && typeof snapshot.savedAt === "string" && Array.isArray(snapshot.files))
+    .map(snapshot => ({
+      ...snapshot,
+      files: snapshot.files.filter(file => file && typeof file.id === "string" && typeof file.name === "string" && typeof file.content === "string")
+    }));
+}
 
 // ======================================
 // ALMACENAMIENTO
@@ -46,13 +64,36 @@ function loadJSON(key, fallback) {
   }
 }
 
-function save() {
-  try {
-    localStorage.setItem(STORAGE_CHATS, JSON.stringify(chats));
-  } catch (error) {
-    console.error("No se pudo guardar el historial local:", error);
-    toast("No hay espacio para guardar el historial en este dispositivo.");
-  }
+function save(chat = current()) {
+  if (!authSession || !chat || deletingChatIds.has(chat.id)) return;
+  clearTimeout(pendingChatSaves.get(chat.id));
+  const snapshot = {
+    title: chat.title,
+    model: chat.model || "openrouter/free",
+    mode: chat.mode || "general",
+    messages: chat.messages.map(message => ({ role: message.role, content: message.content, mode: message.mode, model: message.model, sources: message.sources, sourceAvailability: message.sourceAvailability, error: message.error }))
+  };
+  const timer = setTimeout(async () => {
+    pendingChatSaves.delete(chat.id);
+    const previousWrite = chatWriteChains.get(chat.id) || Promise.resolve();
+    const write = previousWrite.catch(() => {}).then(async () => {
+      if (deletingChatIds.has(chat.id)) return;
+      const response = await authorizedFetch(`/api/chats/${encodeURIComponent(chat.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(snapshot)
+      });
+      if (!response.ok) throw new Error("No se pudo guardar la conversación en tu cuenta.");
+    }).catch(error => {
+      if (deletingChatIds.has(chat.id)) return;
+      console.error("Error al guardar el chat remoto:", error);
+      toast(error.message || "No se pudo guardar la conversación.");
+    }).finally(() => {
+      if (chatWriteChains.get(chat.id) === write) chatWriteChains.delete(chat.id);
+    });
+    chatWriteChains.set(chat.id, write);
+  }, 250);
+  pendingChatSaves.set(chat.id, timer);
 }
 
 function saveProject() {
@@ -96,7 +137,13 @@ function current() {
 function makeId() {
   return crypto.randomUUID
     ? crypto.randomUUID()
-    : Date.now() + "-" + Math.random().toString(36).slice(2);
+    : (() => {
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = [...bytes].map(byte => byte.toString(16).padStart(2, "0"));
+        return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+      })();
 }
 
 // ======================================
@@ -107,13 +154,15 @@ function newChat() {
   const chat = {
     id: makeId(),
     title: "Nuevo chat",
-    messages: []
+    messages: [],
+    model: $("modelSelect")?.value || "openrouter/free",
+    mode: $("modeSelect")?.value || "general"
   };
 
   chats.unshift(chat);
   activeId = chat.id;
 
-  save();
+  save(chat);
   renderAll();
 }
 
@@ -139,6 +188,7 @@ function renderList() {
     title.textContent = chat.title;
     title.onclick = () => {
       activeId = chat.id;
+      if (freeModelIds.has(chat.model)) $("modelSelect").value = chat.model;
       renderAll();
       $("sidebar").classList.remove("open");
     };
@@ -153,7 +203,7 @@ function renderList() {
       const nextTitle = prompt("Nuevo nombre para esta conversación:", chat.title);
       if (!nextTitle?.trim()) return;
       chat.title = nextTitle.trim().slice(0, 80);
-      save();
+      save(chat);
       renderList();
     };
 
@@ -163,11 +213,24 @@ function renderList() {
     remove.textContent = "×";
     remove.title = "Eliminar conversación";
     remove.setAttribute("aria-label", `Eliminar ${chat.title}`);
-    remove.onclick = () => {
+    remove.onclick = async () => {
       if (!confirm(`¿Eliminar «${chat.title}»? Esta acción no se puede deshacer.`)) return;
+      deletingChatIds.add(chat.id);
+      clearTimeout(pendingChatSaves.get(chat.id));
+      pendingChatSaves.delete(chat.id);
+      try {
+        await chatWriteChains.get(chat.id)?.catch(() => {});
+        const response = await authorizedFetch(`/api/chats/${encodeURIComponent(chat.id)}`, { method: "DELETE" });
+        if (!response.ok) throw new Error("No se pudo eliminar la conversación de tu cuenta.");
+      } catch (error) {
+        deletingChatIds.delete(chat.id);
+        save(chat);
+        toast(error.message || "No se pudo borrar el chat.");
+        return;
+      }
+      deletingChatIds.delete(chat.id);
       chats = chats.filter(item => item.id !== chat.id);
       if (activeId === chat.id) activeId = chats[0]?.id || null;
-      save();
       renderAll();
     };
 
@@ -563,6 +626,53 @@ function renderMessages() {
     }
 
     row.append(bubble);
+
+    if (message.role === "assistant" && message.model) {
+      const modelMeta = document.createElement("div");
+      modelMeta.className = "model-meta";
+      modelMeta.textContent = "Modelo usado: ";
+      const modelName = document.createElement("strong");
+      modelName.textContent = message.model;
+      modelMeta.append(modelName);
+      row.append(modelMeta);
+    }
+
+    if (message.role === "assistant" && Array.isArray(message.sources) && message.sources.length) {
+      const references = document.createElement("div");
+      references.className = "source-citations";
+      message.sources.forEach(source => {
+        try {
+          const url = new URL(source.url);
+          if (url.protocol !== "https:" || !["github.com", "stackoverflow.com"].includes(url.hostname)) return;
+          const link = document.createElement("a");
+          link.href = url.toString();
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          const provider = document.createElement("span");
+          provider.textContent = source.provider;
+          const title = document.createElement("strong");
+          title.textContent = source.title;
+          const snippet = document.createElement("small");
+          snippet.textContent = source.snippet || "";
+          link.append(provider, title, snippet);
+          references.append(link);
+        } catch {}
+      });
+      if (references.childElementCount) row.append(references);
+    }
+
+    if (message.role === "assistant" && message.sourceAvailability &&
+        (!message.sourceAvailability.github || !message.sourceAvailability.stackoverflow || !message.sources?.length)) {
+      const sourceStatus = document.createElement("small");
+      sourceStatus.className = "source-status";
+      const unavailable = [];
+      if (!message.sourceAvailability.github) unavailable.push("GitHub");
+      if (!message.sourceAvailability.stackoverflow) unavailable.push("Stack Overflow");
+      sourceStatus.textContent = unavailable.length
+        ? `Fuente temporalmente no disponible: ${unavailable.join(", ")}.`
+        : "La búsqueda no devolvió resultados enlazables.";
+      if (sourceStatus.textContent) row.append(sourceStatus);
+    }
 
     if (message.role === "user") {
       const editButton = document.createElement("button");
@@ -1128,15 +1238,15 @@ function buildRequestHistory(messages) {
 
 async function send(text, { appendUser = true, modeOverride = null } = {}) {
   const content = String(text || "").trim();
-
   if (!content || busy) return;
-
-  const requestMode = modeOverride || $("modeSelect").value || "general";
-
   if (!current()) newChat();
-
   const chat = current();
-
+  const requestMode = modeOverride || $("modeSelect").value || chat.mode || "general";
+  if (!freeModelIds.has(chat.model)) {
+    toast("Este modelo ya no está disponible gratis. Elige una opción disponible para abrir un chat nuevo.");
+    return;
+  }
+  chat.mode = requestMode;
   if (appendUser) {
     chat.messages.push({
       role: "user",
@@ -1150,53 +1260,40 @@ async function send(text, { appendUser = true, modeOverride = null } = {}) {
       content.slice(0, 34) +
       (content.length > 34 ? "…" : "");
   }
-
   promptEl.value = "";
   promptEl.style.height = "auto";
-
   busy = true;
   activeController = new AbortController();
-
-  save();
+  save(chat);
   renderAll();
-
   $("sendBtn").disabled = true;
   $("stopBtn").hidden = false;
   $("modelSelect").disabled = true;
-
   try {
-    const response = await fetch("/api/chat", {
+    const response = await authorizedFetch("/api/chat", {
       method: "POST",
-
-      headers: {
-        "Content-Type": "application/json"
-      },
-
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messages: buildRequestHistory(chat.messages),
-        model: $("modelSelect").value,
-        mode: requestMode
+        model: chat.model,
+        mode: requestMode,
+        personality: settings.personality,
+        emojiLevel: settings.emojiLevel,
+        useSources: $("useSources").checked
       }),
       signal: activeController.signal
     });
-
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error || "Error al consultar la IA."
-      );
-    }
-
-    if (typeof data.answer !== "string") {
-      throw new Error("La respuesta de la IA no es válida.");
-    }
-
+    if (!response.ok) throw new Error(data.error || "Error al consultar la IA.");
+    if (typeof data.answer !== "string") throw new Error("La respuesta de la IA no es válida.");
     chat.messages.push({
       role: "assistant",
-      content: data.answer
+      content: data.answer,
+      model: data.model,
+      selectedModel: data.selectedModel,
+      sources: Array.isArray(data.sources) ? data.sources : [],
+      sourceAvailability: data.sourceAvailability || null
     });
-
   } catch (err) {
     chat.messages.push({
       role: "assistant",
@@ -1205,16 +1302,13 @@ async function send(text, { appendUser = true, modeOverride = null } = {}) {
         : "No pude completar la solicitud: " + err.message,
       error: err.name !== "AbortError"
     });
-
   } finally {
     busy = false;
     activeController = null;
-
     $("sendBtn").disabled = false;
     $("stopBtn").hidden = true;
     $("modelSelect").disabled = false;
-
-    save();
+    save(chat);
     renderAll();
   }
 }
@@ -1239,14 +1333,13 @@ async function retryResponse(errorIndex) {
 async function loadModels() {
   const select = $("modelSelect");
   if (!select) return;
-
   try {
     const response = await fetch("/api/models");
     if (!response.ok) throw new Error("No se pudo cargar el catálogo de modelos.");
     const data = await response.json();
     if (!Array.isArray(data.models) || !data.models.length) return;
-
     const savedModel = localStorage.getItem(STORAGE_MODEL);
+    freeModelIds = new Set(data.models.map(model => model.id));
     select.replaceChildren();
     data.models.forEach(model => {
       const option = document.createElement("option");
@@ -1254,12 +1347,21 @@ async function loadModels() {
       option.textContent = model.name;
       select.append(option);
     });
-
-    const exists = data.models.some(model => model.id === savedModel);
-    select.value = exists ? savedModel : data.defaultModel;
+    const activeModel = current()?.model;
+    const activeExists = data.models.some(model => model.id === activeModel);
+    const savedExists = data.models.some(model => model.id === savedModel);
+    select.value = activeExists ? activeModel : savedExists ? savedModel : data.defaultModel;
+    if (current() && !activeExists) newChat();
+    if (!current()) newChat();
     select.addEventListener("change", () => {
       try { localStorage.setItem(STORAGE_MODEL, select.value); }
       catch (error) { console.warn("No se pudo guardar el modelo seleccionado:", error); }
+      const active = current();
+      if (active?.model !== select.value) {
+        if (active) save(active);
+        newChat();
+        toast(`Nuevo chat con ${select.selectedOptions[0]?.textContent || select.value}.`);
+      }
     });
   } catch (error) {
     console.warn("El selector de modelos usa la opción predeterminada:", error);
@@ -1276,12 +1378,146 @@ function initializeModePicker() {
   select.addEventListener("change", () => {
     try { localStorage.setItem(STORAGE_MODE, select.value); }
     catch (error) { console.warn("No se pudo guardar el modo seleccionado:", error); }
+    if (current()) {
+      current().mode = select.value;
+      save(current());
+    }
   });
 }
 
 // ======================================
 // EVENTOS DEL CHAT
 // ======================================
+
+async function authorizedFetch(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  const method = String(options.method || "GET").toUpperCase();
+  if (method !== "GET" && authSession?.csrfToken) headers.set("x-csrf-token", authSession.csrfToken);
+  const response = await fetch(url, { ...options, headers, credentials: "same-origin" });
+  if (response.status === 401) {
+    lockToLogin("Tu sesión venció. Vuelve a iniciar sesión con Google.");
+    throw new Error("La sesión venció. Inicia sesión otra vez.");
+  }
+  return response;
+}
+
+function showLoginGate(configured, message, canSignIn = false) {
+  document.querySelector(".app").hidden = true;
+  $("projectWorkspace").hidden = true;
+  $("loginGate").hidden = false;
+  $("loginStatus").textContent = message;
+  $("signInBtn").disabled = !canSignIn;
+  $("signInBtn").title = configured ? "Iniciar sesión con Google" : "El administrador debe completar la configuración del servidor.";
+}
+
+function lockToLogin(message) {
+  authSession = null;
+  authUser = null;
+  chats = [];
+  activeId = null;
+  showLoginGate(true, message, true);
+}
+
+async function initializeApplication() {
+  try {
+    const response = await fetch("/api/me", { cache: "no-store", credentials: "same-origin" });
+    const data = await response.json();
+    if (!response.ok) {
+      showLoginGate(true, data.error || "No se pudo comprobar el acceso seguro.", false);
+      return;
+    }
+    if (!data.configured) {
+      showLoginGate(false, "El acceso seguro aún no está configurado. El administrador debe conectar Google y PostgreSQL persistente.", false);
+      return;
+    }
+    if (!data.authenticated || !data.user?.id || !data.csrfToken) {
+      showLoginGate(true, "Inicia sesión con Google para abrir tu espacio personal.", true);
+      return;
+    }
+
+    authSession = { csrfToken: data.csrfToken };
+    authUser = data.user;
+    setAccountStorage(authUser.id);
+    const stored = loadJSON(STORAGE_PREFERENCES, {});
+    const personalities = ["professional", "cheerful", "direct", "friendly", "creative", "teacher"];
+    const emojiLevels = ["none", "low", "medium", "always"];
+    settings = {
+      personality: personalities.includes(stored.personality) ? stored.personality : "professional",
+      emojiLevel: emojiLevels.includes(stored.emojiLevel) ? stored.emojiLevel : "low",
+      useSources: Boolean(stored.useSources)
+    };
+    $("personalitySelect").value = settings.personality;
+    $("emojiLevelSelect").value = settings.emojiLevel;
+    $("useSources").checked = settings.useSources;
+    $("userName").textContent = authUser.name || "Cuenta Google";
+    $("userEmail").textContent = authUser.email || "Sesión segura";
+    $("userAvatar").textContent = (authUser.name || authUser.email || "D").trim().charAt(0).toUpperCase();
+
+    const chatsResponse = await authorizedFetch("/api/chats", { cache: "no-store" });
+    const chatData = await chatsResponse.json();
+    if (!chatsResponse.ok || !Array.isArray(chatData.chats)) throw new Error(chatData.error || "No se pudo cargar el historial de tu cuenta.");
+    chats = chatData.chats.filter(chat => chat && typeof chat.id === "string" && Array.isArray(chat.messages));
+    activeId = chats[0]?.id || null;
+
+    initializeModePicker();
+    await loadModels();
+    if (projectFiles.length) activeFileId = projectFiles[0].id;
+    renderAll();
+    $("loginGate").hidden = true;
+    document.querySelector(".app").hidden = false;
+  } catch (error) {
+    console.error("No se pudo iniciar DARK IA:", error);
+    showLoginGate(true, error.message || "No se pudo cargar la cuenta de forma segura. Intenta de nuevo.", false);
+  }
+}
+
+$("signInBtn").addEventListener("click", () => {
+  if (!$("signInBtn").disabled) window.location.assign("/auth/google");
+});
+
+function openPreferences() {
+  $("personalitySelect").value = settings.personality;
+  $("emojiLevelSelect").value = settings.emojiLevel;
+  const dialog = $("preferencesDialog");
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function persistPreferences() {
+  const personality = $("personalitySelect").value;
+  const emojiLevel = $("emojiLevelSelect").value;
+  if (!["professional", "cheerful", "direct", "friendly", "creative", "teacher"].includes(personality) ||
+      !["none", "low", "medium", "always"].includes(emojiLevel)) {
+    toast("Selecciona opciones válidas.");
+    return;
+  }
+  settings = { ...settings, personality, emojiLevel };
+  try { localStorage.setItem(STORAGE_PREFERENCES, JSON.stringify(settings)); }
+  catch { toast("No se pudieron guardar los ajustes en este dispositivo."); return; }
+  $("preferencesDialog").close?.();
+  toast("Preferencias guardadas para esta cuenta.");
+}
+
+$("openSettings").addEventListener("click", openPreferences);
+$("mobileSettings").addEventListener("click", openPreferences);
+$("closePreferences").addEventListener("click", () => $("preferencesDialog").close?.());
+$("savePreferences").addEventListener("click", persistPreferences);
+$("useSources").addEventListener("change", () => {
+  settings.useSources = $("useSources").checked;
+  if (STORAGE_PREFERENCES) {
+    try { localStorage.setItem(STORAGE_PREFERENCES, JSON.stringify(settings)); }
+    catch { toast("No se pudo guardar esta preferencia."); }
+  }
+});
+$("logoutBtn").addEventListener("click", async () => {
+  try {
+    const response = await authorizedFetch("/api/logout", { method: "POST" });
+    if (!response.ok) throw new Error("No se pudo cerrar la sesión.");
+    window.location.assign("/");
+  } catch (error) {
+    toast(error.message || "No se pudo cerrar la sesión.");
+  }
+});
 
 $("chatForm").addEventListener("submit", event => {
   event.preventDefault();
@@ -1350,13 +1586,6 @@ document.querySelectorAll(".suggestion").forEach(button => {
   });
 });
 
-// Seleccionar el primer archivo del Studio si existe.
-if (projectFiles.length > 0) {
-  activeFileId = projectFiles[0].id;
-}
-
-// Inicializar la aplicación.
-renderAll();
-initializeModePicker();
-loadModels();
+// Abrir el chat y el Studio únicamente tras validar la sesión en el servidor.
+initializeApplication();
   
