@@ -1204,7 +1204,14 @@ function downloadProjectFiles() {
 function buildRequestHistory(messages) {
   let remaining = 22_000;
   const selected = [];
-  for (const message of messages.slice(-30).reverse()) {
+  const candidates = messages.filter(message =>
+    message &&
+    ["user", "assistant"].includes(message.role) &&
+    typeof message.content === "string" &&
+    message.content.trim() &&
+    !message.streaming
+  ).slice(-30);
+  for (const message of candidates.reverse()) {
     if (message.content.length > remaining) break;
     selected.push({ role: message.role, content: message.content });
     remaining -= message.content.length;
