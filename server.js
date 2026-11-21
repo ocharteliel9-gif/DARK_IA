@@ -1,6 +1,7 @@
 
 import express from "express";
 import dotenv from "dotenv";
+import { rateLimit } from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -8,6 +9,13 @@ dotenv.config();
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const trustedProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
+
+if (!Number.isInteger(trustedProxyHops) || trustedProxyHops < 0 || trustedProxyHops > 5) {
+  throw new Error("TRUST_PROXY_HOPS debe ser un entero entre 0 y 5.");
+}
+
+app.set("trust proxy", trustedProxyHops);
 
 const PORT = process.env.PORT || 3000;
 const DEFAULT_MODEL =
@@ -103,7 +111,9 @@ function getModel(requestedModel) {
     return requestedModel;
   }
 
-  return DEFAULT_MODEL;
+  return ALLOWED_MODELS.has(DEFAULT_MODEL)
+    ? DEFAULT_MODEL
+    : "openrouter/free";
 }
 
 // ==========================================
@@ -254,11 +264,47 @@ app.get("/api/modes", (_req, res) => {
   });
 });
 
+app.get("/api/models", (_req, res) => {
+  res.json({
+    success: true,
+    defaultModel: getModel(),
+    models: [...ALLOWED_MODELS].map(id => ({
+      id,
+      name: id === "openrouter/free" ? "OpenRouter Free" : id.split("/").at(-1)
+    }))
+  });
+});
+
+const chatLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: "Demasiadas solicitudes en poco tiempo. Espera un minuto y vuelve a intentarlo."
+  }
+});
+
 // ==========================================
 // MOTOR PRINCIPAL
 // ==========================================
 
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", chatLimiter, async (req, res) => {
+  const controller = new AbortController();
+  let timedOut = false;
+  let clientDisconnected = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, 90000);
+  res.on("close", () => {
+    if (!res.writableEnded) {
+      clientDisconnected = true;
+      controller.abort();
+    }
+  });
+
   try {
     const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -318,7 +364,8 @@ app.post("/api/chat", async (req, res) => {
         "X-Title": "DARK IA ULTRA"
       },
 
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal: controller.signal
     });
 
     let data;
@@ -370,12 +417,25 @@ app.post("/api/chat", async (req, res) => {
     });
 
   } catch (error) {
+    clearTimeout(timeout);
+
+    if (clientDisconnected || res.destroyed) return;
+
+    if (timedOut) {
+      return res.status(504).json({
+        success: false,
+        error: "La respuesta tardó demasiado. Puedes reintentar sin perder el mensaje."
+      });
+    }
+
     console.error("DARK IA ULTRA ERROR:", error);
 
     return res.status(500).json({
       success: false,
       error: "Error interno. Intenta nuevamente."
     });
+  } finally {
+    clearTimeout(timeout);
   }
 });
 

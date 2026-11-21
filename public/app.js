@@ -6,14 +6,16 @@ const $ = id => document.getElementById(id);
 
 const STORAGE_CHATS = "darkia_chats";
 const STORAGE_PROJECT = "darkia_project_3";
+const STORAGE_MODEL = "darkia_model";
 
 const messagesEl = $("messages");
 const welcomeEl = $("welcome");
 const promptEl = $("prompt");
 
 let chats = loadJSON(STORAGE_CHATS, []);
-let activeId = null;
+let activeId = chats[0]?.id || null;
 let busy = false;
+let activeController = null;
 
 let projectFiles = loadJSON(STORAGE_PROJECT, []);
 let activeFileId = null;
@@ -32,7 +34,12 @@ function loadJSON(key, fallback) {
 }
 
 function save() {
-  localStorage.setItem(STORAGE_CHATS, JSON.stringify(chats));
+  try {
+    localStorage.setItem(STORAGE_CHATS, JSON.stringify(chats));
+  } catch (error) {
+    console.error("No se pudo guardar el historial local:", error);
+    toast("No hay espacio para guardar el historial en este dispositivo.");
+  }
 }
 
 function saveProject() {
@@ -68,8 +75,6 @@ function newChat() {
 
   save();
   renderAll();
-
-  promptEl.focus();
 }
 
 function renderList() {
@@ -77,23 +82,56 @@ function renderList() {
   if (!list) return;
 
   list.innerHTML = "";
+  const query = $("searchChats")?.value.trim().toLocaleLowerCase() || "";
 
-  chats.forEach(chat => {
+  chats.filter(chat => !query || chat.title.toLocaleLowerCase().includes(query)).forEach(chat => {
     const el = document.createElement("div");
 
     el.className =
       "chat-item" +
       (chat.id === activeId ? " active" : "");
 
-    el.textContent = chat.title;
     el.title = chat.title;
 
-    el.onclick = () => {
+    const title = document.createElement("button");
+    title.type = "button";
+    title.className = "chat-title";
+    title.textContent = chat.title;
+    title.onclick = () => {
       activeId = chat.id;
       renderAll();
       $("sidebar").classList.remove("open");
     };
 
+    const rename = document.createElement("button");
+    rename.type = "button";
+    rename.className = "chat-action";
+    rename.textContent = "✎";
+    rename.title = "Renombrar conversación";
+    rename.setAttribute("aria-label", `Renombrar ${chat.title}`);
+    rename.onclick = () => {
+      const nextTitle = prompt("Nuevo nombre para esta conversación:", chat.title);
+      if (!nextTitle?.trim()) return;
+      chat.title = nextTitle.trim().slice(0, 80);
+      save();
+      renderList();
+    };
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "chat-action";
+    remove.textContent = "×";
+    remove.title = "Eliminar conversación";
+    remove.setAttribute("aria-label", `Eliminar ${chat.title}`);
+    remove.onclick = () => {
+      if (!confirm(`¿Eliminar «${chat.title}»? Esta acción no se puede deshacer.`)) return;
+      chats = chats.filter(item => item.id !== chat.id);
+      if (activeId === chat.id) activeId = chats[0]?.id || null;
+      save();
+      renderAll();
+    };
+
+    el.append(title, rename, remove);
     list.append(el);
   });
 }
@@ -118,6 +156,13 @@ function formatPlainText(text) {
     /`([^`\n]+)`/g,
     "<code>$1</code>"
   );
+
+  out = out.replace(/^###\s+(.+)$/gm, "<h3>$1</h3>");
+  out = out.replace(/^##\s+(.+)$/gm, "<h2>$1</h2>");
+  out = out.replace(/^#\s+(.+)$/gm, "<h1>$1</h1>");
+  out = out.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  out = out.replace(/^\s*[-*]\s+(.+)$/gm, "• $1");
 
   return out.replace(/\n/g, "<br>");
 }
@@ -219,7 +264,7 @@ function toast(message) {
 async function copyCode(code) {
   try {
     await navigator.clipboard.writeText(code);
-    toast("Código completo copiado.");
+    toast("Texto copiado al portapapeles.");
   } catch {
     const area = document.createElement("textarea");
     area.value = code;
@@ -228,7 +273,7 @@ async function copyCode(code) {
 
     try {
       document.execCommand("copy");
-      toast("Código copiado.");
+      toast("Texto copiado al portapapeles.");
     } catch {
       toast("No se pudo copiar el código.");
     }
@@ -368,7 +413,7 @@ function createCodeCard(info, code) {
   return card;
 }
 
-function createErrorCard(message) {
+function createErrorCard(message, onRetry) {
   const card = document.createElement("div");
   card.className = "code-result-card code-error-card";
 
@@ -381,6 +426,15 @@ function createErrorCard(message) {
 
   card.append(status, description);
 
+  if (onRetry) {
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "code-more-btn";
+    retry.textContent = "Reintentar respuesta";
+    retry.onclick = onRetry;
+    card.append(retry);
+  }
+
   return card;
 }
 
@@ -388,9 +442,9 @@ function createErrorCard(message) {
 // PROCESAR RESPUESTAS
 // ======================================
 
-function renderAssistantContent(container, message) {
+function renderAssistantContent(container, message, onRetry) {
   if (message.error) {
-    container.append(createErrorCard(message.content));
+    container.append(createErrorCard(message.content, onRetry));
     return;
   }
 
@@ -426,6 +480,15 @@ function renderAssistantContent(container, message) {
     paragraph.innerHTML = formatPlainText(remaining);
     container.append(paragraph);
   }
+
+  if (text.trim()) {
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.className = "copy-answer";
+    copyButton.textContent = "Copiar respuesta";
+    copyButton.onclick = () => copyCode(text);
+    container.append(copyButton);
+  }
 }
 
 // ======================================
@@ -439,7 +502,7 @@ function renderMessages() {
   welcomeEl.hidden = list.length > 0;
   messagesEl.innerHTML = "";
 
-  list.forEach(message => {
+  list.forEach((message, messageIndex) => {
     const row = document.createElement("div");
     row.className = "message " + message.role;
 
@@ -454,12 +517,31 @@ function renderMessages() {
     bubble.className = "bubble";
 
     if (message.role === "assistant") {
-      renderAssistantContent(bubble, message);
+      renderAssistantContent(bubble, message, () => retryResponse(messageIndex));
     } else {
       bubble.textContent = message.content;
     }
 
     row.append(bubble);
+
+    if (message.role === "user") {
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = "edit-message";
+      editButton.textContent = "Editar";
+      editButton.setAttribute("aria-label", "Editar y reenviar este mensaje");
+      editButton.onclick = async () => {
+        const revised = prompt("Edita el mensaje y vuelve a enviarlo:", message.content);
+        if (!revised?.trim() || busy) return;
+        const activeChat = current();
+        activeChat.messages = activeChat.messages.slice(0, messageIndex);
+        save();
+        renderAll();
+        await send(revised);
+      };
+      row.append(editButton);
+    }
+
     messagesEl.append(row);
   });
 
@@ -768,8 +850,8 @@ function downloadProjectFiles() {
 // CONEXIÓN CON OPENROUTER
 // ======================================
 
-async function send(text) {
-  const content = text.trim();
+async function send(text, { appendUser = true } = {}) {
+  const content = String(text || "").trim();
 
   if (!content || busy) return;
 
@@ -777,10 +859,12 @@ async function send(text) {
 
   const chat = current();
 
-  chat.messages.push({
-    role: "user",
-    content
-  });
+  if (appendUser) {
+    chat.messages.push({
+      role: "user",
+      content
+    });
+  }
 
   if (chat.title === "Nuevo chat") {
     chat.title =
@@ -792,11 +876,14 @@ async function send(text) {
   promptEl.style.height = "auto";
 
   busy = true;
+  activeController = new AbortController();
 
   save();
   renderAll();
 
   $("sendBtn").disabled = true;
+  $("stopBtn").hidden = false;
+  $("modelSelect").disabled = true;
 
   try {
     const response = await fetch("/api/chat", {
@@ -807,8 +894,10 @@ async function send(text) {
       },
 
       body: JSON.stringify({
-        messages: chat.messages.slice(-30)
-      })
+        messages: chat.messages.slice(-30),
+        model: $("modelSelect").value
+      }),
+      signal: activeController.signal
     });
 
     const data = await response.json();
@@ -831,17 +920,69 @@ async function send(text) {
   } catch (err) {
     chat.messages.push({
       role: "assistant",
-      content: "No pude completar la solicitud: " + err.message,
-      error: true
+      content: err.name === "AbortError"
+        ? "Generación detenida. El mensaje enviado se conserva en el historial."
+        : "No pude completar la solicitud: " + err.message,
+      error: err.name !== "AbortError"
     });
 
   } finally {
     busy = false;
+    activeController = null;
 
     $("sendBtn").disabled = false;
+    $("stopBtn").hidden = true;
+    $("modelSelect").disabled = false;
 
     save();
     renderAll();
+  }
+}
+
+async function retryResponse(errorIndex) {
+  const chat = current();
+  if (busy || !chat || !chat.messages[errorIndex]?.error) return;
+
+  const previousUser = chat.messages
+    .slice(0, errorIndex)
+    .reverse()
+    .find(message => message.role === "user");
+  if (!previousUser) return;
+
+  const prompt = previousUser.content;
+  chat.messages = chat.messages.slice(0, errorIndex);
+  save();
+  renderAll();
+  await send(prompt, { appendUser: false });
+}
+
+async function loadModels() {
+  const select = $("modelSelect");
+  if (!select) return;
+
+  try {
+    const response = await fetch("/api/models");
+    if (!response.ok) throw new Error("No se pudo cargar el catálogo de modelos.");
+    const data = await response.json();
+    if (!Array.isArray(data.models) || !data.models.length) return;
+
+    const savedModel = localStorage.getItem(STORAGE_MODEL);
+    select.replaceChildren();
+    data.models.forEach(model => {
+      const option = document.createElement("option");
+      option.value = model.id;
+      option.textContent = model.name;
+      select.append(option);
+    });
+
+    const exists = data.models.some(model => model.id === savedModel);
+    select.value = exists ? savedModel : data.defaultModel;
+    select.addEventListener("change", () => {
+      try { localStorage.setItem(STORAGE_MODEL, select.value); }
+      catch (error) { console.warn("No se pudo guardar el modelo seleccionado:", error); }
+    });
+  } catch (error) {
+    console.warn("El selector de modelos usa la opción predeterminada:", error);
   }
 }
 
@@ -869,6 +1010,12 @@ promptEl.addEventListener("keydown", event => {
 });
 
 $("newChat").onclick = newChat;
+
+$("searchChats").addEventListener("input", renderList);
+
+$("stopBtn").addEventListener("click", () => {
+  activeController?.abort();
+});
 
 $("clearBtn").onclick = () => {
   if (!current()) return;
@@ -907,4 +1054,5 @@ if (projectFiles.length > 0) {
 
 // Inicializar la aplicación.
 renderAll();
+loadModels();
   

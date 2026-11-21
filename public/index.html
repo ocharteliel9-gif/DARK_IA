@@ -27,6 +27,7 @@
       </button>
 
       <div class="side-label">CONVERSACIONES</div>
+      <input id="searchChats" class="chat-search" type="search" placeholder="Buscar conversaciones..." aria-label="Buscar conversaciones">
       <div id="chatList" class="chat-list"></div>
 
       <div class="side-bottom">
@@ -81,6 +82,14 @@
       </section>
 
       <footer class="composer-wrap">
+        <div class="chat-tools">
+          <label class="model-picker" for="modelSelect">Modelo
+            <select id="modelSelect" aria-label="Seleccionar modelo">
+              <option value="openrouter/free">OpenRouter Free</option>
+            </select>
+          </label>
+          <button class="stop-btn" id="stopBtn" type="button" hidden>■ Detener</button>
+        </div>
         <form id="chatForm" class="composer">
           <textarea
             id="prompt"
