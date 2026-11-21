@@ -1,4 +1,4 @@
-pconst $ = id => document.getElementById(id);
+const $ = id => document.getElementById(id);
 
 // ======================================
 // DARK IA 3.0 - CONFIGURACIÓN
@@ -842,8 +842,6 @@ async function send(text) {
 
     save();
     renderAll();
-
-    promptEl.focus();
   }
 }
 
