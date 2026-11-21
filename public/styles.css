@@ -321,6 +321,13 @@ textarea:focus-visible {
   justify-content: flex-end;
 }
 
+.message.assistant {
+  display: grid;
+  grid-template-columns: 29px minmax(0, 1fr);
+  column-gap: 13px;
+  row-gap: 4px;
+}
+
 .message .bubble {
   max-width: min(85%, 680px);
   white-space: pre-wrap;
@@ -335,8 +342,23 @@ textarea:focus-visible {
 }
 
 .message.assistant .bubble {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  max-width: none;
   padding: 4px 0;
-  flex: 1;
+}
+
+.message.assistant .who {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.message.assistant .model-meta,
+.message.assistant .source-citations,
+.message.assistant .source-status {
+  grid-column: 2;
+  min-width: 0;
 }
 
 .message .who {

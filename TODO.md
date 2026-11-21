@@ -54,6 +54,7 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 
 ## 9. Experiencia de chats
 - [x] Crear, eliminar, renombrar y buscar conversaciones independientes en el navegador actual; no hay sincronización ni API de historial remoto.
+- [x] En pantallas estrechas, la burbuja del asistente conserva ancho legible y el modelo/fuentes aparecen debajo, sin comprimir ni fragmentar las palabras.
 - [~] Markdown seguro, bloques de código, copiar respuestas, indicador de generación, detener y reintentar respuestas; formato Markdown básico implementado, falta cubrir sintaxis completa.
 - [ ] Editar mensajes, adjuntar archivos y previsualizar imágenes y videos.
 - [ ] Todos los controles publicados funcionan.
