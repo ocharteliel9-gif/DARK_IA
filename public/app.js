@@ -1,47 +1,88 @@
+const $ = id => document.getElementById(id);
 
-const $ = (id) => document.getElementById(id);
+// ======================================
+// DARK IA 3.0 - CONFIGURACIÓN
+// ======================================
+
+const STORAGE_CHATS = "darkia_chats";
+const STORAGE_PROJECT = "darkia_project_3";
 
 const messagesEl = $("messages");
 const welcomeEl = $("welcome");
 const promptEl = $("prompt");
 
-let chats = JSON.parse(localStorage.getItem("darkia_chats") || "[]");
+let chats = loadJSON(STORAGE_CHATS, []);
 let activeId = null;
 let busy = false;
 
+let projectFiles = loadJSON(STORAGE_PROJECT, []);
+let activeFileId = null;
+
 // ======================================
-// HISTORIAL
+// ALMACENAMIENTO
 // ======================================
 
+function loadJSON(key, fallback) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key));
+    return value ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function save() {
-  localStorage.setItem("darkia_chats", JSON.stringify(chats));
+  localStorage.setItem(STORAGE_CHATS, JSON.stringify(chats));
+}
+
+function saveProject() {
+  localStorage.setItem(
+    STORAGE_PROJECT,
+    JSON.stringify(projectFiles)
+  );
 }
 
 function current() {
   return chats.find(c => c.id === activeId);
 }
 
+function makeId() {
+  return crypto.randomUUID
+    ? crypto.randomUUID()
+    : Date.now() + "-" + Math.random().toString(36).slice(2);
+}
+
+// ======================================
+// HISTORIAL
+// ======================================
+
 function newChat() {
   const chat = {
-    id: crypto.randomUUID(),
+    id: makeId(),
     title: "Nuevo chat",
     messages: []
   };
 
   chats.unshift(chat);
   activeId = chat.id;
+
   save();
   renderAll();
+
   promptEl.focus();
 }
 
 function renderList() {
-  $("chatList").innerHTML = "";
+  const list = $("chatList");
+  if (!list) return;
+
+  list.innerHTML = "";
 
   chats.forEach(chat => {
     const el = document.createElement("div");
 
-    el.className = "chat-item" +
+    el.className =
+      "chat-item" +
       (chat.id === activeId ? " active" : "");
 
     el.textContent = chat.title;
@@ -53,12 +94,12 @@ function renderList() {
       $("sidebar").classList.remove("open");
     };
 
-    $("chatList").append(el);
+    list.append(el);
   });
 }
 
 // ======================================
-// SEGURIDAD Y FORMATO DE TEXTO
+// FORMATO SEGURO
 // ======================================
 
 function safeText(text) {
@@ -82,7 +123,7 @@ function formatPlainText(text) {
 }
 
 // ======================================
-// INFORMACIÓN DE ARCHIVOS
+// TIPOS DE ARCHIVOS
 // ======================================
 
 const fileTypes = {
@@ -120,7 +161,6 @@ const fileTypes = {
 
 function getFileInfo(info) {
   const parts = info.trim().split(/\s+/);
-
   const language = (parts[0] || "text").toLowerCase();
 
   const type = fileTypes[language] || {
@@ -128,11 +168,9 @@ function getFileInfo(info) {
     file: "codigo." + language
   };
 
-  let filename = parts.find(part =>
+  const filename = parts.find(part =>
     /^[a-zA-Z0-9_.-]+\.[a-zA-Z0-9]+$/.test(part)
-  );
-
-  if (!filename) filename = type.file;
+  ) || type.file;
 
   return {
     language,
@@ -141,8 +179,41 @@ function getFileInfo(info) {
   };
 }
 
+function languageFromFilename(filename) {
+  const ext = filename.split(".").pop().toLowerCase();
+
+  const aliases = {
+    htm: "html",
+    js: "javascript",
+    ts: "typescript",
+    py: "python",
+    yml: "yaml",
+    md: "markdown"
+  };
+
+  const language = aliases[ext] || ext;
+
+  return fileTypes[language]?.name || language.toUpperCase();
+}
+
 // ======================================
-// TARJETA DE CÓDIGO
+// NOTIFICACIONES
+// ======================================
+
+function toast(message) {
+  const el = $("toast");
+  if (!el) return;
+
+  el.textContent = message;
+  el.classList.add("show");
+
+  setTimeout(() => {
+    el.classList.remove("show");
+  }, 2600);
+}
+
+// ======================================
+// COPIAR Y DESCARGAR
 // ======================================
 
 async function copyCode(code) {
@@ -151,7 +222,6 @@ async function copyCode(code) {
     toast("Código completo copiado.");
   } catch {
     const area = document.createElement("textarea");
-
     area.value = code;
     document.body.append(area);
     area.select();
@@ -183,10 +253,14 @@ function downloadCode(code, filename) {
   link.click();
   link.remove();
 
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 
   toast("Archivo descargado.");
 }
+
+// ======================================
+// TARJETAS DE CÓDIGO
+// ======================================
 
 function createCodeCard(info, code) {
   const card = document.createElement("section");
@@ -198,7 +272,6 @@ function createCodeCard(info, code) {
 
   let expanded = false;
 
-  // CABECERA
   const header = document.createElement("div");
   header.className = "code-result-header";
 
@@ -207,11 +280,10 @@ function createCodeCard(info, code) {
 
   const status = document.createElement("span");
   status.className = "code-status success";
-  status.textContent = "Terminado con éxito";
+  status.textContent = "Código generado";
 
   header.append(title, status);
 
-  // INFORMACIÓN DEL ARCHIVO
   const metadata = document.createElement("div");
   metadata.className = "code-result-meta";
 
@@ -223,59 +295,26 @@ function createCodeCard(info, code) {
 
   metadata.append(language, count);
 
-  // VISTA DEL CÓDIGO
   const preview = document.createElement("pre");
   preview.className = "code-result-preview";
 
   const codeElement = document.createElement("code");
-  codeElement.textContent = lines
-    .slice(0, previewLimit)
-    .join("\n");
-
   preview.append(codeElement);
 
-  // BOTONES
-  const actions = document.createElement("div");
-  actions.className = "code-result-actions";
-
-  const copyButton = document.createElement("button");
-  copyButton.type = "button";
-  copyButton.textContent = "Copiar";
-  copyButton.className = "code-copy-btn";
-
-  copyButton.onclick = () => copyCode(code);
-
-  const downloadButton = document.createElement("button");
-  downloadButton.type = "button";
-  downloadButton.textContent = "Descargar";
-  downloadButton.className = "code-download-btn";
-
-  downloadButton.onclick = () =>
-    downloadCode(code, info.filename);
-
-  actions.append(copyButton, downloadButton);
-
-  // VER MÁS
   const more = document.createElement("button");
   more.type = "button";
   more.className = "code-more-btn";
 
   function updatePreview() {
-    const visibleLines = expanded
-      ? lines
-      : lines.slice(0, previewLimit);
+    codeElement.textContent = (
+      expanded ? lines : lines.slice(0, previewLimit)
+    ).join("\n");
 
-    codeElement.textContent = visibleLines.join("\n");
+    more.hidden = totalLines <= previewLimit;
 
-    if (totalLines > previewLimit) {
-      more.hidden = false;
-
-      more.textContent = expanded
-        ? "Ver menos"
-        : `Ver más... (${totalLines - previewLimit} líneas más)`;
-    } else {
-      more.hidden = true;
-    }
+    more.textContent = expanded
+      ? "Ver menos"
+      : `Ver más... (${totalLines - previewLimit} líneas más)`;
   }
 
   more.onclick = () => {
@@ -284,6 +323,39 @@ function createCodeCard(info, code) {
   };
 
   updatePreview();
+
+  const actions = document.createElement("div");
+  actions.className = "code-result-actions";
+
+  const copyButton = document.createElement("button");
+  copyButton.type = "button";
+  copyButton.className = "code-copy-btn";
+  copyButton.textContent = "Copiar";
+  copyButton.onclick = () => copyCode(code);
+
+  const downloadButton = document.createElement("button");
+  downloadButton.type = "button";
+  downloadButton.className = "code-download-btn";
+  downloadButton.textContent = "Descargar";
+  downloadButton.onclick = () =>
+    downloadCode(code, info.filename);
+
+  const studioButton = document.createElement("button");
+  studioButton.type = "button";
+  studioButton.className = "code-more-btn";
+  studioButton.textContent = "＋ Agregar al Studio";
+
+  studioButton.onclick = () => {
+    addProjectFile(info.filename, code);
+    openProjects();
+    toast(info.filename + " agregado al Studio.");
+  };
+
+  actions.append(
+    copyButton,
+    downloadButton,
+    studioButton
+  );
 
   card.append(
     header,
@@ -295,10 +367,6 @@ function createCodeCard(info, code) {
 
   return card;
 }
-
-// ======================================
-// RESULTADO DE ERROR
-// ======================================
 
 function createErrorCard(message) {
   const card = document.createElement("div");
@@ -317,19 +385,16 @@ function createErrorCard(message) {
 }
 
 // ======================================
-// PROCESAR RESPUESTAS DE LA IA
+// PROCESAR RESPUESTAS
 // ======================================
 
 function renderAssistantContent(container, message) {
   if (message.error) {
-    container.append(
-      createErrorCard(message.content)
-    );
+    container.append(createErrorCard(message.content));
     return;
   }
 
   const text = String(message.content || "");
-
   const regex = /```([^\n`]*)\n([\s\S]*?)```/g;
 
   let lastIndex = 0;
@@ -348,9 +413,7 @@ function renderAssistantContent(container, message) {
     const info = getFileInfo(match[1]);
     const code = match[2].replace(/\n$/, "");
 
-    container.append(
-      createCodeCard(info, code)
-    );
+    container.append(createCodeCard(info, code));
 
     lastIndex = regex.lastIndex;
   }
@@ -378,15 +441,12 @@ function renderMessages() {
 
   list.forEach(message => {
     const row = document.createElement("div");
-
     row.className = "message " + message.role;
 
     if (message.role === "assistant") {
       const who = document.createElement("div");
-
       who.className = "who";
       who.textContent = "D";
-
       row.append(who);
     }
 
@@ -429,22 +489,283 @@ function renderAll() {
 }
 
 // ======================================
-// NOTIFICACIONES
+// DARK IA STUDIO - ABRIR Y CERRAR
 // ======================================
 
-function toast(message) {
-  const el = $("toast");
+function openProjects() {
+  $("sidebar").classList.remove("open");
 
-  el.textContent = message;
-  el.classList.add("show");
+  $("projectWorkspace").hidden = false;
+  document.querySelector(".app").hidden = true;
 
-  setTimeout(() => {
-    el.classList.remove("show");
-  }, 2600);
+  renderProjectFiles();
+  renderEditor();
+}
+
+function closeProjects() {
+  $("projectWorkspace").hidden = true;
+  document.querySelector(".app").hidden = false;
 }
 
 // ======================================
-// CONEXIÓN CON DARK IA
+// ARCHIVOS DEL PROYECTO
+// ======================================
+
+function addProjectFile(filename, content = "") {
+  const existing = projectFiles.find(
+    file => file.name === filename
+  );
+
+  if (existing) {
+    existing.content = content;
+    activeFileId = existing.id;
+  } else {
+    const file = {
+      id: makeId(),
+      name: filename,
+      content: content
+    };
+
+    projectFiles.push(file);
+    activeFileId = file.id;
+  }
+
+  saveProject();
+  renderProjectFiles();
+  renderEditor();
+}
+
+function activeProjectFile() {
+  return projectFiles.find(
+    file => file.id === activeFileId
+  );
+}
+
+function renderProjectFiles() {
+  const list = $("projectFileList");
+  if (!list) return;
+
+  list.innerHTML = "";
+
+  if (!projectFiles.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-files";
+    empty.textContent = "Todavía no hay archivos.";
+
+    const small = document.createElement("small");
+    small.textContent = "Genera un proyecto para comenzar.";
+
+    empty.append(small);
+    list.append(empty);
+    return;
+  }
+
+  projectFiles.forEach(file => {
+    const item = document.createElement("button");
+    item.type = "button";
+
+    item.className =
+      "project-file-item" +
+      (file.id === activeFileId ? " active" : "");
+
+    const icon = document.createElement("span");
+    icon.className = "file-icon";
+    icon.textContent = file.name.endsWith(".html")
+      ? "🌐"
+      : file.name.endsWith(".css")
+        ? "🎨"
+        : file.name.endsWith(".js")
+          ? "⚡"
+          : "📄";
+
+    const name = document.createElement("span");
+    name.textContent = file.name;
+
+    item.append(icon, name);
+
+    item.onclick = () => {
+      activeFileId = file.id;
+      renderProjectFiles();
+      renderEditor();
+    };
+
+    list.append(item);
+  });
+}
+
+// ======================================
+// EDITOR DE CÓDIGO
+// ======================================
+
+function renderEditor() {
+  const file = activeProjectFile();
+  const editor = $("projectCodeEditor");
+
+  if (!file) {
+    $("activeFileName").textContent = "Sin archivo seleccionado";
+    $("editorLanguage").textContent = "EDITOR";
+    editor.value = "";
+    updateLineCount();
+    return;
+  }
+
+  $("activeFileName").textContent = file.name;
+  $("editorLanguage").textContent =
+    languageFromFilename(file.name);
+
+  editor.value = file.content;
+  updateLineCount();
+}
+
+function updateLineCount() {
+  const editor = $("projectCodeEditor");
+  const lines = editor.value.split("\n").length;
+
+  $("editorLineCount").textContent =
+    lines + (lines === 1 ? " línea" : " líneas");
+}
+
+$("projectCodeEditor").addEventListener("input", () => {
+  const file = activeProjectFile();
+
+  if (!file) return;
+
+  file.content = $("projectCodeEditor").value;
+
+  saveProject();
+  updateLineCount();
+});
+
+// ======================================
+// CREAR ARCHIVO MANUALMENTE
+// ======================================
+
+function createManualFile() {
+  const filename = prompt(
+    "Nombre del archivo. Ejemplo: index.html"
+  );
+
+  if (!filename) return;
+
+  const cleanName = filename.trim();
+
+  if (
+    !/^[a-zA-Z0-9_.-]+\.[a-zA-Z0-9]+$/.test(cleanName)
+  ) {
+    toast("Nombre de archivo no válido.");
+    return;
+  }
+
+  if (projectFiles.some(file => file.name === cleanName)) {
+    toast("Ese archivo ya existe.");
+    return;
+  }
+
+  addProjectFile(cleanName, "");
+  toast("Archivo creado.");
+}
+
+// ======================================
+// GUARDAR PROYECTO
+// ======================================
+
+function saveProjectNow() {
+  const file = activeProjectFile();
+
+  if (file) {
+    file.content = $("projectCodeEditor").value;
+  }
+
+  saveProject();
+  toast("Proyecto guardado en este dispositivo.");
+}
+
+// ======================================
+// VISTA PREVIA DEL PROYECTO
+// ======================================
+
+function buildPreview() {
+  const htmlFile =
+    projectFiles.find(file => file.name === "index.html") ||
+    projectFiles.find(file => file.name.endsWith(".html"));
+
+  if (!htmlFile) {
+    toast("Necesitas un archivo HTML para la vista previa.");
+    return;
+  }
+
+  const css = projectFiles
+    .filter(file => file.name.endsWith(".css"))
+    .map(file => file.content)
+    .join("\n");
+
+  const js = projectFiles
+    .filter(file => file.name.endsWith(".js"))
+    .map(file => file.content)
+    .join("\n");
+
+  let html = htmlFile.content;
+
+  if (css) {
+    const safeCSS = css.replace(/</g, "\\3C ");
+
+    if (/<\/head>/i.test(html)) {
+      html = html.replace(
+        /<\/head>/i,
+        `<style>${safeCSS}</style></head>`
+      );
+    } else {
+      html = `<style>${safeCSS}</style>` + html;
+    }
+  }
+
+  if (js) {
+    // Evita que una etiqueta de cierre rompa el documento.
+    const safeJS = js
+      .replace(/</g, "\\u003c")
+      .replace(/>/g, "\\u003e");
+
+    const script = `<script>${safeJS}<\/script>`;
+
+    if (/<\/body>/i.test(html)) {
+      html = html.replace(
+        /<\/body>/i,
+        script + "</body>"
+      );
+    } else {
+      html += script;
+    }
+  }
+
+  $("projectPreviewFrame").srcdoc = html;
+
+  toast("Vista previa actualizada.");
+}
+
+function refreshPreview() {
+  buildPreview();
+}
+
+// ======================================
+// EXPORTAR ARCHIVOS
+// ======================================
+
+function downloadProjectFiles() {
+  if (!projectFiles.length) {
+    toast("No hay archivos para descargar.");
+    return;
+  }
+
+  // Descarga individual de los archivos del proyecto.
+  projectFiles.forEach((file, index) => {
+    setTimeout(() => {
+      downloadCode(file.content, file.name);
+    }, index * 350);
+  });
+}
+
+// ======================================
+// CONEXIÓN CON OPENROUTER
 // ======================================
 
 async function send(text) {
@@ -474,7 +795,6 @@ async function send(text) {
 
   save();
   renderAll();
-  renderList();
 
   $("sendBtn").disabled = true;
 
@@ -522,14 +842,13 @@ async function send(text) {
 
     save();
     renderAll();
-    renderList();
 
     promptEl.focus();
   }
 }
 
 // ======================================
-// EVENTOS
+// EVENTOS DEL CHAT
 // ======================================
 
 $("chatForm").addEventListener("submit", event => {
@@ -561,28 +880,9 @@ $("clearBtn").onclick = () => {
 
   save();
   renderAll();
-  renderList();
 
   toast("Conversación borrada.");
 };
 
 $("menuBtn").onclick = () => {
-  $("sidebar").classList.toggle("open");
-};
-
-document.querySelectorAll(".suggestion").forEach(button => {
-  button.onclick = () => send(button.dataset.prompt);
-});
-
-// ======================================
-// INICIO
-// ======================================
-
-if (chats.length) {
-  activeId = chats[0].id;
-} else {
-  newChat();
-}
-
-renderAll();
-         
+  $("sidebar").classList.toggle("op
