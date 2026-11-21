@@ -1406,8 +1406,12 @@ function showLoginGate(configured, message, canSignIn = false) {
   $("projectWorkspace").hidden = true;
   $("loginGate").hidden = false;
   $("loginStatus").textContent = message;
-  $("signInBtn").disabled = !canSignIn;
-  $("signInBtn").title = configured ? "Iniciar sesión con Google" : "El administrador debe completar la configuración del servidor.";
+  const signInButton = $("signInBtn");
+  signInButton.disabled = false;
+  signInButton.dataset.loginReady = String(configured && canSignIn);
+  signInButton.title = configured && canSignIn
+    ? "Iniciar sesión con Google"
+    : "El servidor todavía no está listo para iniciar sesión con Google; toca para ver el motivo.";
 }
 
 function lockToLogin(message) {
@@ -1472,7 +1476,18 @@ async function initializeApplication() {
 }
 
 $("signInBtn").addEventListener("click", () => {
-  if (!$("signInBtn").disabled) window.location.assign("/auth/google");
+  if ($("signInBtn").dataset.loginReady !== "true") {
+    const status = $("loginStatus").textContent || "No se pudo verificar el acceso.";
+    const isUnconfigured = /no está configurado|no está configurada|debe conectar Google/i.test(status);
+    const isChecking = /comprobando/i.test(status);
+    $("loginStatus").textContent = isChecking
+      ? "Todavía estoy comprobando el servidor. Espera un momento y vuelve a tocar el botón."
+      : isUnconfigured
+      ? "No se puede abrir Google todavía: el administrador debe configurar GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, SESSION_SECRET y DATABASE_URL persistente en el servidor."
+      : `No se pudo iniciar sesión con Google. Estado del servidor: ${status}`;
+    return;
+  }
+  window.location.assign("/auth/google");
 });
 
 function openPreferences() {
