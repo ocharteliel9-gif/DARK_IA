@@ -79,6 +79,46 @@ test("chat no simula una respuesta si falta la clave OpenRouter", async () => {
   assert.match(data.error, /OPENROUTER_API_KEY/);
 });
 
+test("chat limita el tamaño acumulado del historial antes de consultar al proveedor", async () => {
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [
+      { role: "user", content: "a".repeat(8000) },
+      { role: "assistant", content: "b".repeat(8000) },
+      { role: "user", content: "c".repeat(8000) }
+    ] })
+  });
+  const data = await response.json();
+  assert.equal(response.status, 400);
+  assert.match(data.error, /Historial/);
+});
+
+test("validador HTTP comprueba TypeScript sin ejecutar contenido", async () => {
+  const response = await fetch(`${baseUrl}/api/code/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ language: "ts", code: "const answer: number = 42;" })
+  });
+  const data = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(data.success, true);
+  assert.equal(data.valid, true);
+  assert.match(data.note, /no ejecuta/);
+});
+
+test("validador HTTP responde con diagnóstico de sintaxis", async () => {
+  const response = await fetch(`${baseUrl}/api/code/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ language: "js", code: "function {" })
+  });
+  const data = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(data.valid, false);
+  assert.ok(data.diagnostics.length > 0);
+});
+
 test("chat aplica un límite por IP en lugar de exponer llamadas ilimitadas al proveedor", async () => {
   let limited = false;
 

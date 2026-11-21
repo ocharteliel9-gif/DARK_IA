@@ -1307,3 +1307,86 @@ textarea::placeholder {
   .chat-tools { padding: 0 3px; }
   .model-picker select { max-width: 62vw; }
 }
+
+
+/* Controles de programación, modos e historial local */
+.mode-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mode-picker select {
+  min-height: 34px;
+  padding: 5px 26px 5px 9px;
+  border: 1px solid #4a2733;
+  border-radius: 8px;
+  background: #160d13;
+  color: var(--text);
+  font: inherit;
+}
+
+.project-assist-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 11px;
+  border-top: 1px solid #54262a;
+  background: #251012;
+}
+
+.project-assist-bar button {
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 1px solid #713038;
+  border-radius: 7px;
+  background: #3b1518;
+  color: #ffdce0;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.project-assist-bar button:hover {
+  border-color: var(--accent);
+  background: #552026;
+}
+
+#projectContextSize {
+  flex: 1 1 100%;
+  color: #c59a9e;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.history-dialog {
+  width: min(520px, calc(100vw - 28px));
+  max-height: min(75dvh, 620px);
+  padding: 18px;
+  border: 1px solid #743039;
+  border-radius: 14px;
+  background: #210c0e;
+  color: var(--text);
+  box-shadow: 0 20px 80px #000b;
+}
+
+.history-dialog::backdrop { background: #050204bb; }
+.history-dialog > p { color: var(--muted); font-size: 13px; }
+.history-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.history-dialog-head h2 { margin: 0; font-size: 18px; }
+.history-dialog-head button { width: 34px; height: 34px; border: 1px solid #673039; border-radius: 7px; background: #361318; color: var(--text); font-size: 20px; cursor: pointer; }
+.history-list { display: grid; gap: 8px; max-height: 48dvh; overflow: auto; }
+.history-entry { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid #512329; border-radius: 8px; background: #2d1115; font-size: 12px; }
+.history-entry .project-action { flex: none; }
+.history-empty { color: var(--muted); font-size: 13px; }
+
+@media (max-width: 700px) {
+  .chat-tools { flex-wrap: wrap; justify-content: flex-start; }
+  .mode-picker, .model-picker { font-size: 11px; }
+  .mode-picker select { max-width: 36vw; }
+  .project-top-actions { width: 100%; flex-wrap: wrap; justify-content: flex-start; margin-left: 0; }
+  .project-top-actions .project-action { flex: 1 1 auto; }
+  .history-entry { align-items: flex-start; flex-direction: column; }
+}

@@ -83,6 +83,14 @@
 
       <footer class="composer-wrap">
         <div class="chat-tools">
+          <label class="mode-picker" for="modeSelect">Modo
+            <select id="modeSelect" aria-label="Seleccionar modo">
+              <option value="general">General</option>
+              <option value="coding">Programación</option>
+              <option value="knowledge">Aprendizaje</option>
+              <option value="gaming">Gaming</option>
+            </select>
+          </label>
           <label class="model-picker" for="modelSelect">Modelo
             <select id="modelSelect" aria-label="Seleccionar modelo">
               <option value="openrouter/free">OpenRouter Free</option>
@@ -123,6 +131,17 @@
       <div class="project-top-actions">
         <button class="project-action" id="addProjectFile">
           ＋ Archivo
+        </button>
+
+        <label class="project-action upload-project-label" for="projectFileUpload">↑ Importar</label>
+        <input id="projectFileUpload" type="file" multiple accept=".html,.htm,.css,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.json,.md,.txt,.yaml,.yml,.sql,.java,.go,.rs" hidden>
+
+        <button class="project-action" id="validateProject" type="button">
+          ✓ Validar
+        </button>
+
+        <button class="project-action" id="historyProject" type="button">
+          ◷ Historial
         </button>
 
         <button class="project-action" id="saveProject">
@@ -179,6 +198,14 @@
           <span id="editorLineCount">1 línea</span>
           <span>DARK IA EDITOR</span>
         </div>
+
+        <div class="project-assist-bar" aria-label="Acciones de programación">
+          <button type="button" data-assist="debug">Depurar</button>
+          <button type="button" data-assist="explain">Explicar</button>
+          <button type="button" data-assist="review">Revisar seguridad</button>
+          <button type="button" data-assist="tests">Crear pruebas</button>
+          <span id="projectContextSize">Al pulsar una acción, el código se envía al proveedor de IA seleccionado.</span>
+        </div>
       </section>
 
       <!-- VISTA PREVIA -->
@@ -195,6 +222,7 @@
             id="projectPreviewFrame"
             title="Vista previa del proyecto"
             sandbox="allow-scripts"
+            referrerpolicy="no-referrer"
             srcdoc="<!DOCTYPE html><html><body style='font-family:Arial;padding:20px;color:#222'><h2>DARK IA STUDIO</h2><p>Tu proyecto aparecerá aquí.</p></body></html>"
           ></iframe>
         </div>
@@ -202,6 +230,15 @@
 
     </div>
   </section>
+
+  <dialog class="history-dialog" id="projectHistoryDialog" aria-labelledby="projectHistoryTitle">
+    <div class="history-dialog-head">
+      <h2 id="projectHistoryTitle">Historial del proyecto</h2>
+      <button id="closeProjectHistory" type="button" aria-label="Cerrar historial">×</button>
+    </div>
+    <p>Instantáneas guardadas en este navegador. No se sincronizan con GitHub.</p>
+    <div id="projectHistoryList" class="history-list"></div>
+  </dialog>
 
   <div id="toast" class="toast" role="status"></div>
 

@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { rateLimit } from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
+import { validateCode } from "./src/code-validator.js";
 
 dotenv.config();
 
@@ -68,26 +69,30 @@ Utiliza ejemplos y procedimientos paso a paso.
   coding: {
     name: "DARK CODING",
     instruction: `
-Eres DARK CODING, un ingeniero de software experto.
+Eres DARK CODING, un asistente senior de ingeniería de software. Trabajas con el contexto de proyecto que el usuario haya compartido explícitamente.
 
-Especialidades:
-- Desarrollo Android.
-- Desarrollo web.
-- HTML, CSS y JavaScript.
-- APIs y servidores.
-- Python.
-- Aplicaciones y videojuegos.
-- Depuración y optimización de código.
+ÁREAS: arquitectura, diseño de APIs, Android, web, HTML/CSS/JavaScript/TypeScript, Node.js, Python, SQL, pruebas, depuración, rendimiento, accesibilidad, revisión de seguridad y documentación.
 
-Cuando entregues código:
-1. Proporciona código completo cuando sea necesario.
-2. Indica el nombre del archivo.
-3. Explica dónde colocarlo.
-4. Explica cómo ejecutarlo.
-5. Corrige errores con precisión.
-6. Prioriza seguridad y compatibilidad.
+PROTOCOLO DE TRABAJO:
+1. Identifica el objetivo, archivos/stack disponibles, restricciones y resultado esperado. Si falta un dato bloqueante, pregunta; si no es bloqueante, declara una suposición razonable.
+2. En depuración, busca la causa raíz, explica el síntoma y propone el cambio mínimo que corrige el fallo. No ocultes incertidumbres.
+3. Para cambios de varias partes, enumera los archivos y dependencias afectados; conserva código útil y evita reescribirlo sin necesidad.
+4. Entrega parches completos o fragmentos con ruta/nombre de archivo, dependencias, pasos de instalación, comando de prueba y resultado esperado.
+5. Al revisar código, distingue bugs confirmados, riesgos, mejoras opcionales y cuestiones que no pudiste verificar. Prioriza los problemas por severidad.
+6. Recomienda pruebas unitarias/integración y casos límite. Indica qué pruebas se ejecutaron y cuáles no; nunca afirmes que ejecutaste código solo por leerlo.
+7. Prefiere cambios pequeños, tipados cuando el proyecto use tipos, interfaces explícitas, errores controlados y documentación actualizada.
 
-No afirmes haber probado código si no lo ejecutaste.
+REVISIÓN DE SEGURIDAD:
+- Busca secretos expuestos, inyección SQL/comandos, XSS, SSRF, validación débil, acceso sin autorización, dependencias vulnerables, manejo inseguro de archivos, deserialización peligrosa y logging de datos privados.
+- Valida entradas en el servidor, usa consultas parametrizadas, principio de mínimo privilegio y autorización por objeto/usuario.
+- No sugieras ejecutar código de usuarios con eval, Function, shell o procesos privilegiados. Usa una sandbox aislada si realmente se necesita ejecución.
+- No expongas claves, tokens, datos personales ni secretos presentes en el contexto. No afirmes que un prompt protege por sí solo los recursos del servidor.
+
+RESPUESTAS:
+- Comienza por la solución o el diagnóstico concreto; evita relleno y respuestas genéricas.
+- Usa bloques de código con el lenguaje indicado. Para una generación multiarchivo, separa claramente cada ruta.
+- No inventes acceso a GitHub, terminal, internet, dependencias, logs ni archivos no incluidos en el contexto.
+- Mantén compatibilidad con las versiones expresamente indicadas y señala limitaciones de plataforma/proveedor.
 `
   }
 };
@@ -225,13 +230,15 @@ function validateMessages(messages) {
     return false;
   }
 
-  return messages.every(message =>
+  const validMessages = messages.every(message =>
     message &&
     ["user", "assistant"].includes(message.role) &&
     typeof message.content === "string" &&
     message.content.length > 0 &&
     message.content.length <= 12000
   );
+
+  return validMessages && messages.reduce((total, message) => total + message.content.length, 0) <= 22000;
 }
 
 // ==========================================
@@ -286,6 +293,20 @@ const chatLimiter = rateLimit({
   }
 });
 
+const validationLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 60,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { success: false, error: "Demasiadas validaciones. Espera un minuto y vuelve a intentarlo." }
+});
+
+app.post("/api/code/validate", validationLimiter, (req, res) => {
+  const result = validateCode(req.body?.language, req.body?.code);
+  const { status, ...payload } = result;
+  res.status(status).json(payload);
+});
+
 // ==========================================
 // MOTOR PRINCIPAL
 // ==========================================
@@ -306,15 +327,6 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
   });
 
   try {
-    const apiKey = process.env.OPENROUTER_API_KEY;
-
-    if (!apiKey) {
-      return res.status(503).json({
-        success: false,
-        error: "Falta configurar OPENROUTER_API_KEY en Render."
-      });
-    }
-
     const {
       messages,
       mode = "general",
@@ -332,6 +344,14 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "El modo seleccionado no existe."
+      });
+    }
+
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({
+        success: false,
+        error: "Falta configurar OPENROUTER_API_KEY en Render."
       });
     }
 

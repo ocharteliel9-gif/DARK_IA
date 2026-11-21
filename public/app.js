@@ -6,7 +6,9 @@ const $ = id => document.getElementById(id);
 
 const STORAGE_CHATS = "darkia_chats";
 const STORAGE_PROJECT = "darkia_project_3";
+const STORAGE_PROJECT_HISTORY = "darkia_project_history_1";
 const STORAGE_MODEL = "darkia_model";
+const STORAGE_MODE = "darkia_mode";
 
 const messagesEl = $("messages");
 const welcomeEl = $("welcome");
@@ -18,7 +20,18 @@ let busy = false;
 let activeController = null;
 
 let projectFiles = loadJSON(STORAGE_PROJECT, []);
+let projectHistory = loadJSON(STORAGE_PROJECT_HISTORY, []);
 let activeFileId = null;
+
+if (!Array.isArray(projectFiles)) projectFiles = [];
+projectFiles = projectFiles.filter(file => file && typeof file.id === "string" && typeof file.name === "string" && typeof file.content === "string");
+if (!Array.isArray(projectHistory)) projectHistory = [];
+projectHistory = projectHistory
+  .filter(snapshot => snapshot && typeof snapshot.id === "string" && typeof snapshot.savedAt === "string" && Array.isArray(snapshot.files))
+  .map(snapshot => ({
+    ...snapshot,
+    files: snapshot.files.filter(file => file && typeof file.id === "string" && typeof file.name === "string" && typeof file.content === "string")
+  }));
 
 // ======================================
 // ALMACENAMIENTO
@@ -43,10 +56,37 @@ function save() {
 }
 
 function saveProject() {
-  localStorage.setItem(
-    STORAGE_PROJECT,
-    JSON.stringify(projectFiles)
-  );
+  try {
+    localStorage.setItem(STORAGE_PROJECT, JSON.stringify(projectFiles));
+    return true;
+  } catch (error) {
+    console.error("No se pudo guardar el proyecto local:", error);
+    toast("No hay espacio para guardar el proyecto en este dispositivo.");
+    return false;
+  }
+}
+
+function saveProjectSnapshot() {
+  const serialized = JSON.stringify(projectFiles);
+  if (JSON.stringify(projectHistory[0]?.files || []) === serialized) return false;
+
+  const previousHistory = projectHistory;
+  projectHistory.unshift({
+    id: makeId(),
+    savedAt: new Date().toISOString(),
+    files: JSON.parse(serialized)
+  });
+  projectHistory = projectHistory.slice(0, 3);
+
+  try {
+    localStorage.setItem(STORAGE_PROJECT_HISTORY, JSON.stringify(projectHistory));
+    return true;
+  } catch (error) {
+    projectHistory = previousHistory;
+    console.error("No se pudo guardar la instantánea local:", error);
+    toast("No hay espacio para guardar el historial de versiones.");
+    return false;
+  }
 }
 
 function current() {
@@ -718,6 +758,16 @@ $("projectCodeEditor").addEventListener("input", () => {
   updateLineCount();
 });
 
+$("projectCodeEditor").addEventListener("keydown", event => {
+  if (event.key !== "Tab") return;
+  event.preventDefault();
+  const editor = event.currentTarget;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  editor.setRangeText("  ", start, end, "end");
+  editor.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
 // ======================================
 // CREAR ARCHIVO MANUALMENTE
 // ======================================
@@ -747,6 +797,77 @@ function createManualFile() {
   toast("Archivo creado.");
 }
 
+const IMPORT_EXTENSIONS = new Set(["html", "htm", "css", "js", "mjs", "cjs", "ts", "tsx", "jsx", "py", "json", "md", "txt", "yaml", "yml", "sql", "java", "go", "rs"]);
+const MAX_IMPORTED_FILE_BYTES = 100 * 1024;
+const MAX_PROJECT_BYTES = 450 * 1024;
+const MAX_PROJECT_FILES = 25;
+
+async function importProjectFiles(fileList) {
+  const selected = Array.from(fileList || []);
+  if (!selected.length) return;
+
+  const before = JSON.parse(JSON.stringify(projectFiles));
+  let projectBytes = projectFiles.reduce((sum, file) => sum + new Blob([file.content]).size, 0);
+  let imported = 0;
+
+  for (const file of selected) {
+    const filename = file.name;
+    const extension = filename.split(".").pop().toLowerCase();
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}$/.test(filename) || !filename.includes(".") || !IMPORT_EXTENSIONS.has(extension)) {
+      toast(`Archivo omitido por nombre o tipo no permitido: ${filename}`);
+      continue;
+    }
+    if (file.size > MAX_IMPORTED_FILE_BYTES) {
+      toast(`${filename} supera el límite de 100 KiB.`);
+      continue;
+    }
+
+    const oldFile = projectFiles.find(entry => entry.name === filename);
+    if (!oldFile && projectFiles.length >= MAX_PROJECT_FILES) {
+      toast(`El proyecto admite hasta ${MAX_PROJECT_FILES} archivos.`);
+      continue;
+    }
+    const sizeBefore = oldFile ? new Blob([oldFile.content]).size : 0;
+    if (projectBytes - sizeBefore + file.size > MAX_PROJECT_BYTES) {
+      toast("El proyecto supera el límite local de 450 KiB.");
+      continue;
+    }
+
+    try {
+      const content = await file.text();
+      if (content.includes("\u0000")) {
+        toast(`${filename} parece binario y se omitió.`);
+        continue;
+      }
+      if (oldFile) {
+        oldFile.content = content;
+        activeFileId = oldFile.id;
+      } else {
+        const added = { id: makeId(), name: filename, content };
+        projectFiles.push(added);
+        activeFileId = added.id;
+      }
+      projectBytes = projectBytes - sizeBefore + new Blob([content]).size;
+      imported += 1;
+    } catch {
+      toast(`No se pudo leer ${filename}.`);
+    }
+  }
+
+  if (imported && !saveProject()) {
+    projectFiles = before;
+    activeFileId = projectFiles[0]?.id || null;
+    renderProjectFiles();
+    renderEditor();
+    return;
+  }
+  if (imported) {
+    renderProjectFiles();
+    renderEditor();
+    toast(`${imported} archivo(s) de texto importado(s).`);
+  }
+}
+
 // ======================================
 // GUARDAR PROYECTO
 // ======================================
@@ -758,8 +879,138 @@ function saveProjectNow() {
     file.content = $("projectCodeEditor").value;
   }
 
-  saveProject();
-  toast("Proyecto guardado en este dispositivo.");
+  if (!saveProject()) return;
+  saveProjectSnapshot();
+  toast("Proyecto y versión guardados en este dispositivo.");
+}
+
+function renderProjectHistory() {
+  const list = $("projectHistoryList");
+  list.replaceChildren();
+  if (!projectHistory.length) {
+    const empty = document.createElement("p");
+    empty.className = "history-empty";
+    empty.textContent = "Aún no hay versiones. Usa Guardar para crear una instantánea.";
+    list.append(empty);
+    return;
+  }
+
+  projectHistory.forEach(snapshot => {
+    const row = document.createElement("div");
+    row.className = "history-entry";
+    const details = document.createElement("span");
+    const date = new Date(snapshot.savedAt);
+    details.textContent = `${date.toLocaleString()} · ${snapshot.files.length} archivo(s)`;
+    const restore = document.createElement("button");
+    restore.type = "button";
+    restore.className = "project-action";
+    restore.textContent = "Restaurar";
+    restore.onclick = () => restoreProjectSnapshot(snapshot.id);
+    row.append(details, restore);
+    list.append(row);
+  });
+}
+
+function openProjectHistory() {
+  renderProjectHistory();
+  const dialog = $("projectHistoryDialog");
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function restoreProjectSnapshot(id) {
+  const snapshot = projectHistory.find(item => item.id === id);
+  if (!snapshot || !Array.isArray(snapshot.files)) return;
+  if (!confirm("¿Restaurar esta versión? El proyecto actual será reemplazado en este navegador.")) return;
+  const restoredFiles = JSON.parse(JSON.stringify(snapshot.files));
+  const restoredBytes = restoredFiles.reduce((sum, file) => sum + new Blob([file.content]).size, 0);
+  if (restoredFiles.length > MAX_PROJECT_FILES || restoredBytes > MAX_PROJECT_BYTES || restoredFiles.some(file => !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}\.[a-zA-Z0-9]+$/.test(file.name))) {
+    toast("La versión almacenada no cumple los límites de seguridad del proyecto.");
+    return;
+  }
+  projectFiles = restoredFiles;
+  activeFileId = projectFiles[0]?.id || null;
+  if (!saveProject()) return;
+  renderProjectFiles();
+  renderEditor();
+  $("projectHistoryDialog").close?.();
+  toast("Versión restaurada.");
+}
+
+async function validateActiveProjectFile() {
+  const file = activeProjectFile();
+  if (!file) {
+    toast("Selecciona un archivo para validar.");
+    return;
+  }
+  const extension = file.name.split(".").pop().toLowerCase();
+  if (!["js", "mjs", "cjs", "ts", "tsx", "jsx", "json"].includes(extension)) {
+    toast("La validación local solo admite JS, TS, JSX, TSX y JSON.");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/code/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: extension, code: file.content })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || "Falló la validación.");
+    if (data.valid) {
+      toast(`${file.name}: sintaxis correcta (no es un type-check ni ejecuta código).`);
+      return;
+    }
+    const details = data.diagnostics.slice(0, 8).map(item => {
+      const location = item.line ? `Línea ${item.line}${item.column ? `, columna ${item.column}` : ""}: ` : "";
+      return `• ${location}${item.message}`;
+    }).join("\n");
+    alert(`${file.name}: se encontraron errores de sintaxis.\n\n${details}`);
+  } catch (error) {
+    toast(error.message || "No se pudo validar el archivo.");
+  }
+}
+
+const ASSIST_TASKS = {
+  debug: "Depura el archivo/proyecto compartido. Encuentra primero la causa raíz; diferencia errores demostrables de hipótesis y propone el parche mínimo.",
+  explain: "Explica el código compartido por bloques: propósito, flujo de datos, dependencias y posibles casos límite. Adapta el nivel a alguien que aprende.",
+  review: "Haz una revisión de seguridad defensiva del código compartido. Prioriza hallazgos por severidad, cita archivo y fragmento/ubicación, explica impacto y mitigación; no inventes problemas.",
+  tests: "Propón y escribe pruebas para el código compartido: casos normales, límites y errores. Indica framework solo si puede inferirse; si no, presenta una opción explícita sin afirmar que se ejecutó."
+};
+
+async function askAboutProject(action) {
+  if (busy) return;
+  const task = ASSIST_TASKS[action];
+  if (!task) return;
+  const active = activeProjectFile();
+  if (!projectFiles.length || !active) {
+    toast("Agrega o selecciona archivos antes de pedir ayuda.");
+    return;
+  }
+
+  const orderedFiles = [active, ...projectFiles.filter(file => file.id !== active.id)];
+  const intro = `${task}\n\nContexto: archivos que seleccionaste compartir desde DARK IA Studio. Analiza solo el contenido incluido. No ejecutes el código ni afirmes haber probado lo que no se ha ejecutado.\n`;
+  const contextLimit = 10_500 - intro.length;
+  let used = 0;
+  const sections = [];
+  let omitted = 0;
+
+  for (const file of orderedFiles) {
+    const header = `\n\n--- ${file.name} ---\n`;
+    const available = contextLimit - used - header.length;
+    if (available <= 0) { omitted += 1; continue; }
+    const excerpt = file.content.slice(0, available);
+    sections.push(header + excerpt + (excerpt.length < file.content.length ? "\n[contenido truncado por límite de contexto]" : ""));
+    used += header.length + excerpt.length;
+    if (excerpt.length < file.content.length) omitted += 1;
+  }
+
+  if (omitted) sections.push(`\n\n[Se omitieron o truncaron ${omitted} archivo(s) por el límite de contexto.]`);
+  const prompt = intro + sections.join("");
+  $("modeSelect").value = "coding";
+  try { localStorage.setItem(STORAGE_MODE, "coding"); } catch {}
+  closeProjects();
+  await send(prompt, { modeOverride: "coding" });
 }
 
 // ======================================
@@ -819,9 +1070,23 @@ function buildPreview() {
     }
   }
 
+  const previewPolicy = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">`;
+  const headMatch = /<head\b[^>]*>([\s\S]*?)<\/head\s*>/i.exec(html);
+  const safeBody = html
+    .replace(/<!doctype\b[^>]*>/ig, "")
+    .replace(/<html\b[^>]*>/ig, "")
+    .replace(/<\/html\s*>/ig, "")
+    .replace(/<head\b[^>]*>[\s\S]*?<\/head\s*>/ig, "")
+    .replace(/<head\b[^>]*>/ig, "")
+    .replace(/<body\b[^>]*>/ig, "")
+    .replace(/<\/body\s*>/ig, "");
+  // Rebuild a controlled outer document. Even markup illegally placed before <head>
+  // is now inside the body, after the policy, rather than running before CSP.
+  html = `<!doctype html><html><head>${previewPolicy}${headMatch?.[1] || ""}</head><body>${safeBody}</body></html>`;
+
   $("projectPreviewFrame").srcdoc = html;
 
-  toast("Vista previa actualizada.");
+  toast("Vista previa aislada; las API y recursos externos están bloqueados.");
 }
 
 function refreshPreview() {
@@ -850,10 +1115,23 @@ function downloadProjectFiles() {
 // CONEXIÓN CON OPENROUTER
 // ======================================
 
-async function send(text, { appendUser = true } = {}) {
+function buildRequestHistory(messages) {
+  let remaining = 22_000;
+  const selected = [];
+  for (const message of messages.slice(-30).reverse()) {
+    if (message.content.length > remaining) break;
+    selected.push({ role: message.role, content: message.content });
+    remaining -= message.content.length;
+  }
+  return selected.reverse();
+}
+
+async function send(text, { appendUser = true, modeOverride = null } = {}) {
   const content = String(text || "").trim();
 
   if (!content || busy) return;
+
+  const requestMode = modeOverride || $("modeSelect").value || "general";
 
   if (!current()) newChat();
 
@@ -862,7 +1140,8 @@ async function send(text, { appendUser = true } = {}) {
   if (appendUser) {
     chat.messages.push({
       role: "user",
-      content
+      content,
+      mode: requestMode
     });
   }
 
@@ -894,8 +1173,9 @@ async function send(text, { appendUser = true } = {}) {
       },
 
       body: JSON.stringify({
-        messages: chat.messages.slice(-30),
-        model: $("modelSelect").value
+        messages: buildRequestHistory(chat.messages),
+        model: $("modelSelect").value,
+        mode: requestMode
       }),
       signal: activeController.signal
     });
@@ -953,7 +1233,7 @@ async function retryResponse(errorIndex) {
   chat.messages = chat.messages.slice(0, errorIndex);
   save();
   renderAll();
-  await send(prompt, { appendUser: false });
+  await send(prompt, { appendUser: false, modeOverride: previousUser.mode || $("modeSelect").value });
 }
 
 async function loadModels() {
@@ -984,6 +1264,19 @@ async function loadModels() {
   } catch (error) {
     console.warn("El selector de modelos usa la opción predeterminada:", error);
   }
+}
+
+function initializeModePicker() {
+  const select = $("modeSelect");
+  if (!select) return;
+  const savedMode = localStorage.getItem(STORAGE_MODE);
+  if (["general", "coding", "knowledge", "gaming"].includes(savedMode)) {
+    select.value = savedMode;
+  }
+  select.addEventListener("change", () => {
+    try { localStorage.setItem(STORAGE_MODE, select.value); }
+    catch (error) { console.warn("No se pudo guardar el modo seleccionado:", error); }
+  });
 }
 
 // ======================================
@@ -1037,6 +1330,16 @@ $("openProjects").onclick = openProjects;
 $("closeProjects").onclick = closeProjects;
 
 $("addProjectFile").onclick = createManualFile;
+$("projectFileUpload").addEventListener("change", async event => {
+  await importProjectFiles(event.currentTarget.files);
+  event.currentTarget.value = "";
+});
+$("validateProject").onclick = validateActiveProjectFile;
+$("historyProject").onclick = openProjectHistory;
+$("closeProjectHistory").onclick = () => $("projectHistoryDialog").close?.();
+document.querySelectorAll("[data-assist]").forEach(button => {
+  button.addEventListener("click", () => askAboutProject(button.dataset.assist));
+});
 $("saveProject").onclick = saveProjectNow;
 $("previewProject").onclick = buildPreview;
 $("refreshPreview").onclick = refreshPreview;
@@ -1054,5 +1357,6 @@ if (projectFiles.length > 0) {
 
 // Inicializar la aplicación.
 renderAll();
+initializeModePicker();
 loadModels();
   

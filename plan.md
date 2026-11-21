@@ -17,7 +17,8 @@ El proyecto contiene hoy `server.js`, `public/index.html`, `public/app.js`, `pub
 3. **Persistencia y cuentas:** separación por capas para autenticación Google, autorización en servidor, sesiones HTTP-only y almacenamiento persistente. La opción de producción requiere `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, URL/callback autorizados, una base PostgreSQL persistente (`DATABASE_URL`) y una clave de sesión. No habilitar login hasta que se configuren y validen esos valores. Todas las consultas deben derivar el propietario del usuario autenticado, nunca de un `userId` confiado desde el cliente.
 4. **Contenido multimodal:** validar tipo, tamaño y contenido antes del procesamiento; archivos temporales, no ejecutables, limpieza garantizada y aislamiento por propietario al incorporar cuentas. Activar únicamente formatos cuyos extractores se instalen y prueben. Imágenes requieren un modelo OpenRouter compatible con visión. Video requiere procesamiento real de fotogramas/audio, herramientas del sistema y un modelo compatible; se documentarán sus límites de duración/tamaño y no se afirmará que funciona sin esos requisitos.
 5. **Seguridad y herramientas:** límites de tasa, validación del servidor, salida escapada, manejo uniforme de errores, controles para descargas/cargas, lista permitida de modelos y moderación verificable. Búsqueda web, ejecución de herramientas o moderación externa solo se activarán al disponer de un proveedor y credenciales apropiados. Los prompts internos son defensa complementaria, no barrera de autorización.
-6. **Verificación y entrega:** comprobaciones de sintaxis, API y persistencia; pruebas de aislamiento de usuarios una vez disponible la autenticación; pruebas móviles si hay un entorno de navegador disponible. Integrar los cambios remotos preservando el historial y subir únicamente cambios comprobados a `main`.
+6. **Programación avanzada en el Studio:** conectar el modo coding a la API; permitir importar archivos de texto con allowlist y límites locales; compartir explícitamente un contexto acotado con el proveedor para depurar, explicar, revisar seguridad o proponer pruebas; añadir validación sintáctica sin ejecución para JS/TS/JSX/TSX/JSON, historial de versiones local y edición por Tab. La vista previa permanece en iframe sandbox con CSP de red bloqueada. No se implementará terminal ni ejecución arbitraria en el servidor sin sandbox aislada real.
+7. **Verificación y entrega:** comprobaciones de sintaxis, API y persistencia; pruebas de aislamiento de usuarios una vez disponible la autenticación; pruebas móviles si hay un entorno de navegador disponible. Integrar los cambios remotos preservando el historial y subir únicamente cambios comprobados a `main`.
 
 ## Decisiones técnicas y dependencias
 
@@ -32,6 +33,7 @@ El proyecto contiene hoy `server.js`, `public/index.html`, `public/app.js`, `pub
 ```text
 server.js                 # entrada y escucha HTTP compatible
 src/config.js             # configuración y validación de entorno
+src/code-validator.js     # comprobación sintáctica estática, nunca ejecución
 src/routes/               # endpoints de chat, estado, auth y archivos
 src/middleware/           # validación, sesión, límites y autorización
 src/services/              # proveedor IA, persistencia y extracción de archivos

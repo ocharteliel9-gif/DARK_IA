@@ -81,8 +81,19 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 ## Fase actual
 - [x] Arreglar el error de sintaxis que impedía ejecutar el cliente y quitar el enfoque automático que abría el teclado virtual; commit `a0c80f0` ya está en `main`.
 - [x] Mejorar historial local para restaurar el chat al recargar, no perder el mensaje ante errores, editar/reenviar, renombrar, buscar y eliminar chats; selector real de modelos permitidos, copia de respuestas, reintento, cancelación, timeout y protección de tasa.
-- [x] Aplicar tema negro/rojo y comprobar visualmente el layout en Chromium a 390 px y 1280 px.
-- [x] Ejecutar `npm test`: 5 pruebas aprobadas; `node --check` para cliente/servidor/pruebas; `git diff --check`; `npm audit --omit=dev` sin vulnerabilidades conocidas en dependencias de producción.
+- [x] Aplicar tema negro/rojo y comprobar el layout y los controles del Studio en Chromium a 390 px y 1280 px; sin desbordamiento horizontal.
+- [x] Reproducir instalación con `npm ci --ignore-scripts`; ejecutar `npm test`: 13 pruebas aprobadas; `node --check` para cliente, servidor y pruebas; `git diff --check`; `npm audit --omit=dev` sin vulnerabilidades conocidas en producción.
 - [~] El flujo frontend/API se probó con `OPENROUTER_API_KEY` ausente: el error se muestra y el mensaje permanece después de recargar. No fue posible comprobar una respuesta real del modelo.
 - [ ] Requerimientos externos: credenciales OAuth de Google, `DATABASE_URL` PostgreSQL persistente y secreto de sesión; modelo OpenRouter compatible con visión; extractor multimodal y procesamiento de video/audio disponible en el entorno; servicios de búsqueda/moderación con límites conocidos.
 - [ ] Pruebas de producción y en dispositivo Android real requieren deployment y acceso de prueba; no se simularán ni se reportarán como realizadas sin evidencia.
+
+
+## 14. Programación avanzada (Studio)
+- [x] El selector General/Programación/Aprendizaje/Gaming se conserva localmente y el modo elegido llega al backend; depuración, explicación, revisión de seguridad y propuesta de pruebas usan el modo coding.
+- [x] El Studio importa archivos de texto con nombres/extensiones permitidos, límite de 100 KiB por archivo, 450 KiB por proyecto y 25 archivos; no ejecuta ni envía archivos al proveedor durante la importación.
+- [x] Las acciones de asistencia solo envían al modelo el contexto acotado de los archivos del proyecto después de que el usuario pulse el botón; la interfaz informa que el contenido se envía al proveedor seleccionado.
+- [x] La API valida sintaxis de JavaScript, TypeScript, JSX, TSX y JSON, limita el texto a 200 000 caracteres y a 60 solicitudes por minuto/IP; no ejecuta el código ni reemplaza pruebas o type-check del proyecto.
+- [x] El editor acepta Tab como indentación y el usuario puede guardar/restaurar hasta tres instantáneas locales; las versiones no se sincronizan con GitHub.
+- [x] La vista previa queda en iframe sandbox, con CSP previa al contenido para bloquear APIs/recursos externos y sin encabezado Referer; el código puede intentar navegar el iframe y ejecutar JavaScript que consuma recursos del navegador.
+- [ ] No hay terminal ni ejecución de proyectos Python/Node ni otros lenguajes en el servidor; se requiere diseñar, desplegar y auditar una sandbox aislada antes de ofrecer esa capacidad.
+- [~] El resultado real de asistencia depende de `OPENROUTER_API_KEY`, cuota y capacidades del modelo seleccionado; sin esa configuración la API informa el error y no simula respuestas.
