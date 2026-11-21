@@ -4,32 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090d16">
-  <meta name="description" content="DARK IA 1.0: asistente conversacional personalizable con chats asociados a tu cuenta.">
+  <meta name="description" content="DARK IA 1.0: asistente conversacional gratuito en modo invitado, con chats guardados en este navegador.">
   <title>DARK IA 1.0</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <main class="login-gate" id="loginGate" aria-labelledby="loginTitle">
-    <div class="login-orbit login-orbit-one"></div>
-    <div class="login-orbit login-orbit-two"></div>
-    <section class="login-card">
-      <div class="login-brand"><span class="brand-mark">D</span><span>DARK IA <small>VERSIÓN 1.0</small></span></div>
-      <div class="login-signal"><i></i><span>ESPACIO PERSONAL</span></div>
-      <h1 id="loginTitle">Inicia sesión.<br><em>Entra a DARK IA.</em></h1>
-      <p class="login-copy">El acceso por cuenta requiere Google, una sesión segura y PostgreSQL configurados en el servidor. La aplicación no abrirá el chat hasta validar esos servicios.</p>
-      <button class="google-signin" id="signInBtn" type="button" data-login-ready="false" aria-describedby="loginStatus">
-        <span class="google-g" aria-hidden="true">G</span>
-        <span>Continuar con Google</span>
-        <span class="google-arrow" aria-hidden="true">↗</span>
-      </button>
-      <p class="login-status" id="loginStatus" role="status">Comprobando el acceso seguro…</p>
-      <p class="login-security"><span aria-hidden="true">⌁</span> Acceso cerrado hasta validar Google y PostgreSQL</p>
-      <p class="login-legacy-note">Por seguridad, no se importan los chats locales anteriores.</p>
-    </section>
-    <div class="login-version">DARK IA <span>1.0</span></div>
-  </main>
-
-  <div class="app" hidden>
+  <div class="app">
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="brand-mark">D</div>
@@ -39,18 +19,18 @@
       <button class="new-chat" id="newChat" type="button"><span class="nav-icon">＋</span><span>Nuevo chat</span></button>
       <button class="project-open-btn" id="openProjects" type="button"><span class="nav-icon">&lt;/&gt;</span><span>Entorno de proyectos</span></button>
 
-      <div class="side-label">TU ESPACIO · CHATS</div>
+      <div class="side-label">INVITADO · ESTE NAVEGADOR</div>
       <label class="search-wrap"><span aria-hidden="true">⌕</span><input id="searchChats" class="chat-search" type="search" placeholder="Buscar conversaciones…" aria-label="Buscar conversaciones"></label>
       <div id="chatList" class="chat-list"></div>
 
       <div class="side-bottom">
         <div class="user-chip">
           <div class="avatar" id="userAvatar">D</div>
-          <div class="user-identity"><b id="userName">DARK IA</b><small id="userEmail">Cuenta Google</small></div>
+          <div class="user-identity"><b id="userName">Invitado</b><small id="userEmail">Solo este navegador</small></div>
         </div>
         <div class="side-account-actions">
           <button class="side-setting-btn" id="openSettings" type="button"><span aria-hidden="true">⚙</span> Ajustes</button>
-          <button class="side-setting-btn logout-btn" id="logoutBtn" type="button"><span aria-hidden="true">↗</span> Cerrar sesión</button>
+          <button class="side-setting-btn logout-btn" id="clearGuestChatsBtn" type="button"><span aria-hidden="true">⌫</span> Borrar mis chats</button>
         </div>
       </div>
     </aside>
@@ -68,9 +48,9 @@
       <section class="conversation" id="conversation">
         <div class="welcome" id="welcome">
           <div class="welcome-logo">D</div>
-          <div class="welcome-kicker">DARK IA <span>·</span> ESPACIO PRIVADO</div>
+          <div class="welcome-kicker">DARK IA <span>·</span> MODO INVITADO</div>
           <h1>¿Qué vamos a crear hoy?</h1>
-          <p>Conversaciones tuyas, opciones claras y el modelo utilizado a la vista.</p>
+          <p>Úsala sin iniciar sesión. Tus chats se guardan solo en este navegador.</p>
 
           <div class="suggestions">
             <button class="suggestion" type="button" data-prompt="Enséñame HTML desde cero con un ejemplo.">
@@ -117,7 +97,7 @@
       <div><span class="settings-kicker">TU ESPACIO</span><h2 id="preferencesTitle">Ajustes del asistente</h2></div>
       <button id="closePreferences" type="button" aria-label="Cerrar ajustes">×</button>
     </div>
-    <p class="preferences-intro">Elige el estilo de respuesta. Estas preferencias se guardan en este navegador por cuenta.</p>
+    <p class="preferences-intro">Elige el estilo de respuesta. Estas preferencias se guardan solo en este navegador.</p>
     <label class="preference-field" for="personalitySelect"><span>Personalidad</span>
       <select id="personalitySelect">
         <option value="professional">Profesional</option>
@@ -136,7 +116,7 @@
         <option value="always">Usar siempre</option>
       </select>
     </label>
-    <div class="privacy-note"><span>◈</span><p>Las respuestas se personalizan en el servidor. Los proyectos del Studio siguen guardándose solo en este dispositivo.</p></div>
+      <div class="privacy-note"><span>◈</span><p>Los chats, preferencias y proyectos se guardan en este navegador. No se sincronizan con otros dispositivos; otras personas que usen este mismo perfil podrían verlos.</p></div>
     <button class="preferences-save" id="savePreferences" type="button">Guardar ajustes</button>
   </dialog>
 

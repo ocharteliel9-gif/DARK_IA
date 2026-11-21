@@ -1,6 +1,6 @@
 # Fuentes externas y verificación de modelos — DARK IA 1.0
 
-Consulta puntual realizada el 20 de noviembre de 2026. Los catálogos, límites y APIs pueden cambiar; las observaciones en vivo de esta fecha no garantizan disponibilidad futura.
+Consulta puntual realizada el 20 de noviembre de 2026. Los catálogos, límites y APIs pueden cambiar; las observaciones en vivo de esa fecha no garantizan disponibilidad futura.
 
 ## Modelos gratuitos de OpenRouter
 
@@ -16,11 +16,7 @@ GitHub documenta la búsqueda REST de repositorios y sus cuotas diferenciadas. E
 
 Stack Exchange API v2.3 ofrece `/search/advanced` con el parámetro `site=stackoverflow`. El servidor pide preguntas ordenadas por relevancia, con un máximo de tres resultados. Una comprobación de conectividad obtuvo HTTP 200. Las cuotas y la disponibilidad dependen del servicio. [5] [6]
 
-La respuesta se limita a títulos, metadatos públicos y enlaces HTTPS cuyo hostname se valida contra `github.com` o `stackoverflow.com`. El servidor envía estos datos al modelo solo cuando el usuario activa «Fuentes en vivo». Los resultados son contenido externo no confiable; no equivalen a verificación de verdad ni a búsqueda general de internet.
-
-## Inicio de sesión de Google
-
-El flujo implementado usa autorización de código para servidor web, valores aleatorios `state` y `nonce`, intercambio de código desde el servidor y verificación del ID token. El URI de retorno debe coincidir con el registrado en Google Cloud. Google describe el flujo y la validación de tokens en su documentación oficial. El código todavía requiere credenciales y una base de datos real para habilitar el acceso. [7] [8]
+La respuesta se limita a títulos, metadatos públicos y enlaces HTTPS cuyo hostname se valida contra `github.com` o `stackoverflow.com`. El servidor envía estos datos al modelo solo cuando el usuario activa «Fuentes en vivo». El texto de la consulta se comparte con esos proveedores. Los resultados son contenido externo no confiable; no equivalen a verificación de verdad ni a búsqueda general de internet.
 
 ## Referencias
 
@@ -30,5 +26,3 @@ El flujo implementado usa autorización de código para servidor web, valores al
 [4]: https://docs.github.com/en/rest/search/search "GitHub REST API Search"
 [5]: https://api.stackexchange.com/docs/advanced-search "Stack Exchange Advanced Search"
 [6]: https://stackexchange.com/legal/api-terms-of-use "Stack Exchange API Terms of Use"
-[7]: https://developers.google.com/identity/openid-connect/openid-connect "Google OpenID Connect"
-[8]: https://developers.google.com/identity/protocols/oauth2/web-server "Google OAuth 2.0 for Web Server Applications"

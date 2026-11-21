@@ -9,6 +9,7 @@ let STORAGE_PROJECT_HISTORY = "";
 let STORAGE_MODEL = "";
 let STORAGE_MODE = "";
 let STORAGE_PREFERENCES = "";
+let STORAGE_CHATS = "";
 
 const messagesEl = $("messages");
 const welcomeEl = $("welcome");
@@ -18,25 +19,21 @@ let chats = [];
 let activeId = null;
 let busy = false;
 let activeController = null;
-let authSession = null;
-let authUser = null;
 let freeModelIds = new Set(["openrouter/free"]);
 let settings = { personality: "professional", emojiLevel: "low" };
-const pendingChatSaves = new Map();
-const chatWriteChains = new Map();
-const deletingChatIds = new Set();
 
 let projectFiles = [];
 let projectHistory = [];
 let activeFileId = null;
 
-function setAccountStorage(userId) {
-  const prefix = `darkia_v1_${userId}`;
+function setGuestStorage(deviceId) {
+  const prefix = `darkia_v1_guest_${deviceId}`;
   STORAGE_PROJECT = `${prefix}_studio`;
   STORAGE_PROJECT_HISTORY = `${prefix}_studio_history`;
   STORAGE_MODEL = `${prefix}_model`;
   STORAGE_MODE = `${prefix}_mode`;
   STORAGE_PREFERENCES = `${prefix}_preferences`;
+  STORAGE_CHATS = `${prefix}_chats`;
 
   projectFiles = loadJSON(STORAGE_PROJECT, []);
   projectHistory = loadJSON(STORAGE_PROJECT_HISTORY, []);
@@ -64,36 +61,13 @@ function loadJSON(key, fallback) {
   }
 }
 
-function save(chat = current()) {
-  if (!authSession || !chat || deletingChatIds.has(chat.id)) return;
-  clearTimeout(pendingChatSaves.get(chat.id));
-  const snapshot = {
-    title: chat.title,
-    model: chat.model || "openrouter/free",
-    mode: chat.mode || "general",
-    messages: chat.messages.map(message => ({ role: message.role, content: message.content, mode: message.mode, model: message.model, sources: message.sources, sourceAvailability: message.sourceAvailability, error: message.error }))
-  };
-  const timer = setTimeout(async () => {
-    pendingChatSaves.delete(chat.id);
-    const previousWrite = chatWriteChains.get(chat.id) || Promise.resolve();
-    const write = previousWrite.catch(() => {}).then(async () => {
-      if (deletingChatIds.has(chat.id)) return;
-      const response = await authorizedFetch(`/api/chats/${encodeURIComponent(chat.id)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(snapshot)
-      });
-      if (!response.ok) throw new Error("No se pudo guardar la conversación en tu cuenta.");
-    }).catch(error => {
-      if (deletingChatIds.has(chat.id)) return;
-      console.error("Error al guardar el chat remoto:", error);
-      toast(error.message || "No se pudo guardar la conversación.");
-    }).finally(() => {
-      if (chatWriteChains.get(chat.id) === write) chatWriteChains.delete(chat.id);
-    });
-    chatWriteChains.set(chat.id, write);
-  }, 250);
-  pendingChatSaves.set(chat.id, timer);
+function save() {
+  try {
+    localStorage.setItem(STORAGE_CHATS, JSON.stringify(chats.slice(0, 200)));
+  } catch (error) {
+    console.error("No se pudo guardar el historial local:", error);
+    toast("No se pudo guardar el historial en este navegador. Libera espacio o borra chats.");
+  }
 }
 
 function saveProject() {
@@ -213,24 +187,11 @@ function renderList() {
     remove.textContent = "×";
     remove.title = "Eliminar conversación";
     remove.setAttribute("aria-label", `Eliminar ${chat.title}`);
-    remove.onclick = async () => {
+    remove.onclick = () => {
       if (!confirm(`¿Eliminar «${chat.title}»? Esta acción no se puede deshacer.`)) return;
-      deletingChatIds.add(chat.id);
-      clearTimeout(pendingChatSaves.get(chat.id));
-      pendingChatSaves.delete(chat.id);
-      try {
-        await chatWriteChains.get(chat.id)?.catch(() => {});
-        const response = await authorizedFetch(`/api/chats/${encodeURIComponent(chat.id)}`, { method: "DELETE" });
-        if (!response.ok) throw new Error("No se pudo eliminar la conversación de tu cuenta.");
-      } catch (error) {
-        deletingChatIds.delete(chat.id);
-        save(chat);
-        toast(error.message || "No se pudo borrar el chat.");
-        return;
-      }
-      deletingChatIds.delete(chat.id);
       chats = chats.filter(item => item.id !== chat.id);
       if (activeId === chat.id) activeId = chats[0]?.id || null;
+      save(chats[0] || { id: "local-only" });
       renderAll();
     };
 
@@ -1270,7 +1231,7 @@ async function send(text, { appendUser = true, modeOverride = null } = {}) {
   $("stopBtn").hidden = false;
   $("modelSelect").disabled = true;
   try {
-    const response = await authorizedFetch("/api/chat", {
+    const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1389,59 +1350,27 @@ function initializeModePicker() {
 // EVENTOS DEL CHAT
 // ======================================
 
-async function authorizedFetch(url, options = {}) {
-  const headers = new Headers(options.headers || {});
-  const method = String(options.method || "GET").toUpperCase();
-  if (method !== "GET" && authSession?.csrfToken) headers.set("x-csrf-token", authSession.csrfToken);
-  const response = await fetch(url, { ...options, headers, credentials: "same-origin" });
-  if (response.status === 401) {
-    lockToLogin("Tu sesión venció. Vuelve a iniciar sesión con Google.");
-    throw new Error("La sesión venció. Inicia sesión otra vez.");
+function getGuestDeviceId() {
+  const key = "darkia_v1_guest_device_id";
+  try {
+    const existing = localStorage.getItem(key);
+    if (existing && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existing)) return existing;
+    const created = makeId();
+    localStorage.setItem(key, created);
+    return created;
+  } catch {
+    return `temporary-${makeId()}`;
   }
-  return response;
-}
-
-function showLoginGate(configured, message, canSignIn = false) {
-  document.querySelector(".app").hidden = true;
-  $("projectWorkspace").hidden = true;
-  $("loginGate").hidden = false;
-  $("loginStatus").textContent = message;
-  const signInButton = $("signInBtn");
-  signInButton.disabled = false;
-  signInButton.dataset.loginReady = String(configured && canSignIn);
-  signInButton.title = configured && canSignIn
-    ? "Iniciar sesión con Google"
-    : "El servidor todavía no está listo para iniciar sesión con Google; toca para ver el motivo.";
-}
-
-function lockToLogin(message) {
-  authSession = null;
-  authUser = null;
-  chats = [];
-  activeId = null;
-  showLoginGate(true, message, true);
 }
 
 async function initializeApplication() {
   try {
-    const response = await fetch("/api/me", { cache: "no-store", credentials: "same-origin" });
-    const data = await response.json();
-    if (!response.ok) {
-      showLoginGate(true, data.error || "No se pudo comprobar el acceso seguro.", false);
-      return;
-    }
-    if (!data.configured) {
-      showLoginGate(false, "El acceso seguro aún no está configurado. El administrador debe conectar Google y PostgreSQL persistente.", false);
-      return;
-    }
-    if (!data.authenticated || !data.user?.id || !data.csrfToken) {
-      showLoginGate(true, "Inicia sesión con Google para abrir tu espacio personal.", true);
-      return;
-    }
-
-    authSession = { csrfToken: data.csrfToken };
-    authUser = data.user;
-    setAccountStorage(authUser.id);
+    setGuestStorage(getGuestDeviceId());
+    const storedChats = loadJSON(STORAGE_CHATS, []);
+    chats = Array.isArray(storedChats)
+      ? storedChats.filter(chat => chat && typeof chat.id === "string" && Array.isArray(chat.messages)).slice(0, 200)
+      : [];
+    activeId = chats[0]?.id || null;
     const stored = loadJSON(STORAGE_PREFERENCES, {});
     const personalities = ["professional", "cheerful", "direct", "friendly", "creative", "teacher"];
     const emojiLevels = ["none", "low", "medium", "always"];
@@ -1453,42 +1382,22 @@ async function initializeApplication() {
     $("personalitySelect").value = settings.personality;
     $("emojiLevelSelect").value = settings.emojiLevel;
     $("useSources").checked = settings.useSources;
-    $("userName").textContent = authUser.name || "Cuenta Google";
-    $("userEmail").textContent = authUser.email || "Sesión segura";
-    $("userAvatar").textContent = (authUser.name || authUser.email || "D").trim().charAt(0).toUpperCase();
-
-    const chatsResponse = await authorizedFetch("/api/chats", { cache: "no-store" });
-    const chatData = await chatsResponse.json();
-    if (!chatsResponse.ok || !Array.isArray(chatData.chats)) throw new Error(chatData.error || "No se pudo cargar el historial de tu cuenta.");
-    chats = chatData.chats.filter(chat => chat && typeof chat.id === "string" && Array.isArray(chat.messages));
-    activeId = chats[0]?.id || null;
+    $("userName").textContent = "Invitado";
+    $("userEmail").textContent = "Solo este navegador";
+    $("userAvatar").textContent = "I";
 
     initializeModePicker();
     await loadModels();
     if (projectFiles.length) activeFileId = projectFiles[0].id;
     renderAll();
-    $("loginGate").hidden = true;
-    document.querySelector(".app").hidden = false;
   } catch (error) {
-    console.error("No se pudo iniciar DARK IA:", error);
-    showLoginGate(true, error.message || "No se pudo cargar la cuenta de forma segura. Intenta de nuevo.", false);
+    console.error("No se pudo iniciar el modo invitado:", error);
+    toast("No se pudo preparar el historial local; puedes seguir usando DARK IA sin guardarlo.");
+    initializeModePicker();
+    await loadModels();
+    renderAll();
   }
 }
-
-$("signInBtn").addEventListener("click", () => {
-  if ($("signInBtn").dataset.loginReady !== "true") {
-    const status = $("loginStatus").textContent || "No se pudo verificar el acceso.";
-    const isUnconfigured = /no está configurado|no está configurada|debe conectar Google/i.test(status);
-    const isChecking = /comprobando/i.test(status);
-    $("loginStatus").textContent = isChecking
-      ? "Todavía estoy comprobando el servidor. Espera un momento y vuelve a tocar el botón."
-      : isUnconfigured
-      ? "No se puede abrir Google todavía: el administrador debe configurar GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, SESSION_SECRET y DATABASE_URL persistente en el servidor."
-      : `No se pudo iniciar sesión con Google. Estado del servidor: ${status}`;
-    return;
-  }
-  window.location.assign("/auth/google");
-});
 
 function openPreferences() {
   $("personalitySelect").value = settings.personality;
@@ -1510,7 +1419,7 @@ function persistPreferences() {
   try { localStorage.setItem(STORAGE_PREFERENCES, JSON.stringify(settings)); }
   catch { toast("No se pudieron guardar los ajustes en este dispositivo."); return; }
   $("preferencesDialog").close?.();
-  toast("Preferencias guardadas para esta cuenta.");
+  toast("Preferencias guardadas en este navegador.");
 }
 
 $("openSettings").addEventListener("click", openPreferences);
@@ -1524,14 +1433,13 @@ $("useSources").addEventListener("change", () => {
     catch { toast("No se pudo guardar esta preferencia."); }
   }
 });
-$("logoutBtn").addEventListener("click", async () => {
-  try {
-    const response = await authorizedFetch("/api/logout", { method: "POST" });
-    if (!response.ok) throw new Error("No se pudo cerrar la sesión.");
-    window.location.assign("/");
-  } catch (error) {
-    toast(error.message || "No se pudo cerrar la sesión.");
-  }
+$("clearGuestChatsBtn").addEventListener("click", () => {
+  if (!confirm("¿Borrar todos los chats guardados en este navegador? No podrás recuperarlos.")) return;
+  chats = [];
+  activeId = null;
+  save({ id: "local-only" });
+  renderAll();
+  toast("Se borró el historial de este navegador.");
 });
 
 $("chatForm").addEventListener("submit", event => {

@@ -44,29 +44,46 @@ after(() => {
   server?.kill("SIGTERM");
 });
 
-test("status indica que no se configuró una clave externa", async () => {
+test("status indica acceso invitado local y si existe clave de proveedor", async () => {
   const response = await fetch(`${baseUrl}/api/status`);
   const data = await response.json();
   assert.equal(response.status, 200);
   assert.equal(data.success, true);
   assert.equal(data.configured, false);
-  assert.equal(data.authConfigured, false);
+  assert.equal(data.accessMode, "guest-local");
 });
 
-test("la puerta de acceso falla de forma cerrada si Google y PostgreSQL no están configurados", async () => {
-  const me = await fetch(`${baseUrl}/api/me`);
-  const status = await me.json();
-  assert.equal(status.configured, false);
-  assert.equal(status.authenticated, false);
-  assert.equal(me.headers.get("cache-control"), "no-store");
+test("la interfaz abre directamente como invitado sin mostrar inicio de sesión Google", async () => {
+  const response = await fetch(`${baseUrl}/`);
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /MODO INVITADO/);
+  assert.doesNotMatch(html, /Continuar con Google/);
+  assert.equal((await fetch(`${baseUrl}/auth/google`)).status, 404);
+  assert.equal((await fetch(`${baseUrl}/api/chats`)).status, 404);
+});
 
-  const google = await fetch(`${baseUrl}/auth/google`);
-  assert.equal(google.status, 503);
+test("el saludo exacto funciona en público sin cuenta y sin clave externa", async () => {
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "Hola" }] })
+  });
+  const data = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(data.success, true);
+  assert.equal(data.answer, "Hola soy una IA creada por vip modifier un creador de aplicaciones para el rendimiento no tan conocido");
+});
 
-  const chats = await fetch(`${baseUrl}/api/chats`);
-  assert.equal(chats.status, 503);
-  assert.equal(chats.headers.get("cache-control"), "no-store");
-  assert.match((await chats.json()).error, /inicio de sesión seguro/);
+test("el chat público informa si falta la clave del proveedor, sin pedir login", async () => {
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "Explícame una función." }] })
+  });
+  const data = await response.json();
+  assert.equal(response.status, 503);
+  assert.match(data.error, /OPENROUTER_API_KEY/);
 });
 
 test("catálogo solo expone los modelos permitidos y un default válido", async () => {
@@ -82,18 +99,6 @@ test("modos se sirven desde el backend", async () => {
   const data = await response.json();
   assert.equal(response.status, 200);
   assert.ok(data.modes.some(mode => mode.id === "general"));
-});
-
-test("chat no acepta mensajes ni lee historial sin una sesión autenticada", async () => {
-  const response = await fetch(`${baseUrl}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: [{ role: "user", content: "Hola" }] })
-  });
-  const data = await response.json();
-  assert.equal(response.status, 503);
-  assert.equal(data.success, false);
-  assert.match(data.error, /inicio de sesión seguro/);
 });
 
 test("validador HTTP comprueba TypeScript sin ejecutar contenido", async () => {

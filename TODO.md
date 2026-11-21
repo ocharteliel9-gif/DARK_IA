@@ -21,14 +21,13 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [ ] Hay límites razonables de tamaño/duración y validación de formato/contenido.
 - [ ] El procesamiento real usa almacenamiento temporal seguro, limpieza y conexión con IA; no basta con un botón de carga.
 
-## 4. Cuentas y privacidad con Google
-- [ ] Hay inicio/cierre de sesión con Google, registro automático, perfil e identificador único.
-- [ ] Cada usuario tiene chats guardados, historial y memoria independientes.
-- [ ] Autenticación y sesiones son seguras; autorización en el servidor; almacenamiento con aislamiento por usuario.
-- [ ] Ningún usuario puede acceder a conversaciones, archivos, datos personales ni memoria de otro usuario; no se confía solo en la interfaz.
-- [ ] Sin `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `SESSION_SECRET` y `DATABASE_URL` persistente, la pantalla no permite entrar al chat ni muestra historiales; los datos locales antiguos no se migran automáticamente.
-- [ ] Cada operación de chat obtiene el propietario desde la sesión autenticada y no acepta como autoridad un `userId` del cliente.
-- [ ] Pruebas reales de Google OAuth, cookies y aislamiento de dos cuentas quedan pendientes hasta que haya credenciales de proveedor, dominio de callback y PostgreSQL persistente.
+## 4. Modo invitado y privacidad por navegador
+- [x] DARK IA abre directamente sin inicio de sesión con Google ni cuenta; el backend no monta OAuth ni expone rutas de sesión.
+- [x] Los chats, preferencias, proyectos e instantáneas se guardan en `localStorage` bajo un espacio separado por un identificador aleatorio del perfil de navegador actual.
+- [x] Los chats no se sincronizan entre navegadores/dispositivos ni se guardan en servidor; el backend no ofrece API para leer o administrar historiales remotos.
+- [x] La interfaz informa que cualquiera con acceso al mismo perfil de navegador puede ver el historial y permite borrar los chats locales.
+- [x] No se importan chats antiguos a la nueva clave local; borrar los datos del sitio puede eliminar el historial sin recuperación.
+- [x] Las rutas públicas de chat y búsqueda conservan límites por IP; esto no autentica personas ni evita todo abuso.
 
 ## 5. Protección de secretos y del proyecto
 - [ ] Las solicitudes de código completo, estructura interna, archivos privados, instrucciones, claves, configuraciones, arquitectura o reconstrucción de infraestructura privada reciben una negativa clara y profesional.
@@ -54,7 +53,7 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [ ] Los recuerdos permanecen aislados por cuenta.
 
 ## 9. Experiencia de chats
-- [~] Crear, eliminar, renombrar y buscar conversaciones independientes; la capa de cliente/API persiste chats remotos con ownership, pero la privacidad operativa requiere PostgreSQL real y pruebas entre cuentas.
+- [x] Crear, eliminar, renombrar y buscar conversaciones independientes en el navegador actual; no hay sincronización ni API de historial remoto.
 - [~] Markdown seguro, bloques de código, copiar respuestas, indicador de generación, detener y reintentar respuestas; formato Markdown básico implementado, falta cubrir sintaxis completa.
 - [ ] Editar mensajes, adjuntar archivos y previsualizar imágenes y videos.
 - [ ] Todos los controles publicados funcionan.
@@ -73,7 +72,7 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 
 ## 12. Personalización y saludo
 - [x] En Ajustes se puede elegir personalidad profesional, alegre, fría/directa, amable, creativa o docente; el servidor valida opciones permitidas y las aplica a las instrucciones del modelo.
-- [x] En Ajustes el nivel de emojis se puede seleccionar exactamente entre “Ninguno”, “Bajo”, “Medio” y “Usar siempre”; las preferencias se guardan por ID de cuenta en este navegador y no contaminan otra clave local.
+- [x] En Ajustes el nivel de emojis se puede seleccionar exactamente entre “Ninguno”, “Bajo”, “Medio” y “Usar siempre”; las preferencias se guardan en el espacio invitado de este navegador.
 - [x] Si el mensaje es solo «hola», con espacios exteriores o cambios de mayúsculas, la respuesta es exactamente «Hola soy una IA creada por vip modifier un creador de aplicaciones para el rendimiento no tan conocido».
 
 ## 13. Arquitectura y presentación
@@ -84,13 +83,13 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [x] La versión visible y el título del producto dicen “DARK IA 1.0”; también se corrigen las etiquetas visibles de Studio, sin modificar versiones históricas del código.
 
 ## 14. Pruebas antes de declarar funciones terminadas
-- [ ] Enviar mensajes y recibir respuestas reales de un modelo; requiere `OPENROUTER_API_KEY`.
-- [ ] Verificar persistencia real y chats simultáneos con PostgreSQL.
-- [ ] Probar login Google y aislamiento entre usuarios con dos cuentas.
+- [~] Enviar mensajes y recibir respuestas reales de un modelo; requiere `OPENROUTER_API_KEY`.
+- [x] Verificar que la interfaz abre como invitado, no presenta login Google y no expone rutas de chat remoto.
+- [x] Verificar que el saludo exacto está disponible sin autenticación ni clave externa y que otras peticiones informan si falta OpenRouter.
 - [ ] Probar subida de imágenes, videos <3 minutos y archivos.
 - [ ] Comprobar protección Anti Robo y restricciones de seguridad.
 - [ ] Verificar Android y escritorio en los dispositivos finales.
-- [x] Verificar ausencia de errores JavaScript y del servidor: `node --check`, suite automatizada y servidor HTTP sin configuración.
+- [x] Verificar sintaxis y pruebas automatizadas para interfaz/API invitada; servidor HTTP sin configuración.
 - [ ] Una capacidad no se declara completa si solo existe visualmente.
 
 ## 15. Estado previo y Studio de programación
@@ -98,7 +97,7 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [x] Mejorar historial local para restaurar el chat al recargar, no perder el mensaje ante errores, editar/reenviar, renombrar, buscar y eliminar chats; selector real de modelos permitidos, copia de respuestas, reintento, cancelación, timeout y protección de tasa.
 - [x] Aplicar tema negro/rojo y comprobar el layout y los controles del Studio en Chromium a 390 px y 1280 px; sin desbordamiento horizontal.
 - [x] En esta iteración: `npm test` pasa 21 pruebas; `node --check` pasa para servidor, cliente, módulos y pruebas; `git diff --check` está limpio; `npm audit --omit=dev` reporta cero vulnerabilidades conocidas de producción.
-- [~] El flujo sin `OPENROUTER_API_KEY` no simula respuestas. La ruta de chats ahora exige sesión; el envío y su persistencia reales dependen de configurar proveedores/DB.
+- [x] Sin `OPENROUTER_API_KEY` no se simulan respuestas de modelo; el saludo exacto funciona localmente y los chats se persisten en el navegador. Las respuestas externas requieren configurar OpenRouter.
 - [ ] Requerimientos externos multimodales pendientes: modelo OpenRouter compatible con visión; extractor multimodal y procesamiento de video/audio disponible en el entorno; servicios de búsqueda/moderación con límites conocidos.
 - [ ] Pruebas de producción y en dispositivo Android real requieren deployment y acceso de prueba; no se simularán ni se reportarán como realizadas sin evidencia.
 - [x] El selector General/Programación/Aprendizaje/Gaming se conserva localmente y el modo elegido llega al backend; depuración, explicación, revisión de seguridad y propuesta de pruebas usan el modo coding.
@@ -109,14 +108,14 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [x] La vista previa queda en iframe sandbox, con CSP previa al contenido para bloquear APIs/recursos externos y sin encabezado Referer; el código puede intentar navegar el iframe y ejecutar JavaScript que consuma recursos del navegador.
 - [ ] No hay terminal ni ejecución de proyectos Python/Node ni otros lenguajes en el servidor; se requiere diseñar, desplegar y auditar una sandbox aislada antes de ofrecer esa capacidad.
 - [~] El resultado real de asistencia depende de `OPENROUTER_API_KEY`, cuota y capacidades del modelo seleccionado; sin esa configuración la API informa el error y no simula respuestas.
-- [ ] Migrar proyecto/archivos/historial del Studio desde `localStorage` a almacenamiento durable por cuenta; hasta entonces solo se separan claves del navegador por usuario y no se promete sincronización ni privacidad durable entre dispositivos.
+- [x] Proyectos, archivos, historial del Studio, chats y preferencias se guardan localmente en el espacio del perfil actual; no se promete sincronización ni privacidad frente a otras personas que usen ese mismo perfil.
 
-## 16. Fase actual: ampliación versión 1.0
-- [~] Puerta de entrada y rutas de Google OAuth/OIDC, callback, CSRF, perfil y cierre de sesión implementados con bloqueo seguro; faltan credenciales/dominio para verificar un acceso real.
-- [~] Esquema PostgreSQL, sesiones y consultas de chats por propietario implementados; sin `DATABASE_URL` persistente no se declara privacidad operacional ni prueba de aislamiento entre usuarios.
-- [x] Ajustes de personalidad y emojis aplicados al prompt; claves locales de proyectos/preferencias usan ID de cuenta y no se lee el historial compartido anterior.
+## 16. Fase actual: modo invitado en versión 1.0
+- [x] Se retiraron puerta de Google, rutas/middleware OAuth, sesiones y persistencia PostgreSQL de chats; el acceso se abre directamente como invitado.
+- [x] El espacio local usa un identificador aleatorio persistido por perfil del navegador; no autentica ni sincroniza personas/dispositivos.
+- [x] Ajustes de personalidad, emojis, proyectos y chats se guardan bajo claves del espacio invitado; no se importa el historial legado.
 - [x] Búsqueda opcional contra GitHub y Stack Overflow, salida enlazada validada, límites, sanitización y pruebas deterministas.
 - [x] Selector de modelos gratuitos y sin fallback de pago; al cambiar de modelo se crea chat nuevo y se muestra el identificador real devuelto por el proveedor.
 - [x] Saludo exacto sin OpenRouter, títulos visibles 1.0, menú refinado y pruebas unitarias/HTTP.
-- [x] `docs/INTEGRATIONS.md` documenta `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `SESSION_SECRET`, `DATABASE_URL`, `COOKIE_SECURE`, `TRUST_PROXY_HOPS` y `OPENROUTER_API_KEY` sin valores secretos.
-- [x] Suite de 21 pruebas aprobadas; checks de sintaxis y `git diff --check` limpios; auditoría de producción con cero hallazgos. La sincronización a GitHub aún no se ha realizado.
+- [x] `README.md`, `docs/INTEGRATIONS.md` y `.env.example` documentan el modo invitado, el almacenamiento local y el requisito de `OPENROUTER_API_KEY` sin claves secretas.
+- [x] 21 pruebas automatizadas aprobadas; sintaxis JS, `git diff --check` y `npm audit --omit=dev` limpios. GitHub y Render aún no se han actualizado con este cambio.

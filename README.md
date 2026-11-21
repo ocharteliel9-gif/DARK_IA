@@ -1,25 +1,23 @@
 # DARK IA 1.0
 
-Asistente web con cliente estático y API Express. Incluye inicio de sesión Google/OIDC, sesiones y chats PostgreSQL por propietario, ajustes de estilo, selector dinámico de modelos de precio cero y búsqueda opcional en GitHub público y Stack Overflow. No se deben considerar activos los servicios privados hasta configurar las credenciales y realizar las pruebas de despliegue.
+Asistente web con cliente estático y API Express. Abre directamente en **modo invitado**, sin cuenta ni Google. Los chats, preferencias y proyectos se guardan solo en el navegador; no se sincronizan con otros dispositivos ni se recuperan al borrar los datos del sitio. Las personas que compartan el mismo perfil de navegador pueden ver el mismo historial, así que no guardes información sensible.
 
 ## Ejecutar localmente
 
-Requiere Node.js 20 o superior y PostgreSQL persistente accesible. Ejecuta `npm ci`, copia `.env.example` a `.env` y configura los valores del documento [Integraciones](docs/INTEGRATIONS.md). Registra `http://localhost:3000/auth/google/callback` como callback local exacto del cliente OAuth de Google. Configura `SESSION_SECRET` con al menos 32 bytes aleatorios. Luego ejecuta `npm start` y abre `http://localhost:3000`.
+Requiere Node.js 20 o superior. Ejecuta `npm ci`, copia `.env.example` a `.env` y añade `OPENROUTER_API_KEY` para permitir respuestas de modelos externos. Luego ejecuta `npm start` y abre `http://localhost:3000`.
 
-Sin credenciales válidas de Google y PostgreSQL, la aplicación muestra solo la pantalla de acceso y no abre el chat. Sin `OPENROUTER_API_KEY`, no se generan respuestas de modelo, aunque el saludo literal «hola» sigue siendo una respuesta local exacta. Nunca pongas claves reales en el frontend o en Git.
+El saludo literal «hola» se responde localmente sin clave. Para otras solicitudes, si falta `OPENROUTER_API_KEY`, el servidor informa que no está configurada y no simula una respuesta. El catálogo solo ofrece `openrouter/free` y variantes `:free` con precio indicado como cero; cuotas y disponibilidad varían, por lo que no se promete uso ilimitado.
 
-Comprobaciones: `npm test`, `node --check server.js` y `npm audit --omit=dev`. `TRUST_PROXY_HOPS` debe corresponder al número real de proxies confiables del host; usa cero en conexión local directa y no confíes en cabeceras reenviadas por clientes no confiables.
+Comprobaciones: `npm test`, `node --check server.js`, `node --check public/app.js` y `npm audit --omit=dev`. `TRUST_PROXY_HOPS` debe corresponder al número real de proxies confiables del host; usa cero en conexión local directa.
 
-## Chats, privacidad y datos locales
+## Chats y privacidad
 
-Los chats se guardan en PostgreSQL bajo el ID obtenido de la sesión del servidor. Las consultas de lectura y modificación están limitadas al propietario; el cliente no puede indicar un `userId` para seleccionar otra cuenta. Los endpoints de API no permiten caché compartida. El historial local compartido anterior no se importa.
+Los chats permanecen en `localStorage` en el navegador actual y se separan mediante un identificador aleatorio creado allí. No se guardan en PostgreSQL ni hay una API pública para leer conversaciones. El identificador no verifica quién es la persona: cualquiera con acceso al mismo perfil del navegador puede ver esos chats. Si se cambia de dispositivo, se usa otro perfil o se borran los datos del sitio, el historial no estará disponible.
 
-Las preferencias, proyectos y archivos del Studio aún se guardan en `localStorage` por ID de cuenta en el navegador; no se sincronizan con otros dispositivos y no tienen almacenamiento remoto durable. Consulta [Integraciones](docs/INTEGRATIONS.md) antes de subir o almacenar datos sensibles.
+El texto enviado al asistente se procesa en el servidor y puede enviarse a OpenRouter para generar respuestas; cuando «Fuentes en vivo» está activado, también se consulta a GitHub público y Stack Overflow. No envíes secretos ni información confidencial.
 
 ## Modelos y fuentes
 
-El catálogo expone `openrouter/free` y variantes `:free` con precio cero en entrada y salida. No incluye modelos de pago ni fallback de pago. Las cuotas y disponibilidad de proveedores gratuitos pueden cambiar, y OpenRouter requiere una clave de servidor para inferencia.
+El servidor limita el catálogo a modelos que el proveedor etiqueta con precio cero y no usa fallback a opciones de pago. OpenRouter requiere una clave de servidor. Cuando se activa «Fuentes en vivo», se consultan repositorios públicos de GitHub y Stack Overflow, con límites y timeout. No es búsqueda general ni acceso a repositorios privados. Consulta [Fuentes y modelos](docs/SOURCES_AND_MODELS.md).
 
-Cuando se activa «Fuentes en vivo», el servidor consulta GitHub REST para repositorios públicos y Stack Overflow API. Muestra resultados enlazados de esos dominios, con límite y timeout. No es búsqueda general de internet ni acceso a GitHub privado; los resultados no se consideran automáticamente ciertos. Referencias y límites: [Fuentes y modelos](docs/SOURCES_AND_MODELS.md).
-
-El repositorio DARK_IA es público en GitHub. OAuth protege los datos de cuenta cuando se configura correctamente, pero no oculta el código fuente público ni convierte el repositorio en privado.
+El repositorio DARK_IA es público en GitHub; el modo invitado no oculta su código fuente.

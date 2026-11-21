@@ -4,7 +4,6 @@ import { rateLimit } from "express-rate-limit";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateCode } from "./src/code-validator.js";
-import { mountAuthentication } from "./src/auth.js";
 import { searchPublicSources, buildSourceContext } from "./src/search.js";
 import { listFreeModels, isFreeModelId } from "./src/models.js";
 import { PERSONALITIES, EMOJI_INSTRUCTIONS, EXACT_GREETING, isExactGreeting, isValidAssistantPreferences } from "./src/chat-policy.js";
@@ -27,7 +26,6 @@ app.use("/api", (_req, res, next) => {
   next();
 });
 
-const auth = mountAuthentication(app, process.env);
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
@@ -103,7 +101,7 @@ app.get("/api/status", (_req, res) => {
     version: "1.0",
     provider: "OpenRouter",
     configured: Boolean(process.env.OPENROUTER_API_KEY),
-    authConfigured: auth.configured,
+    accessMode: "guest-local",
     defaultModel: DEFAULT_MODEL,
     modes: Object.keys(MODES)
   });
@@ -151,7 +149,7 @@ app.post("/api/code/validate", validationLimiter, (req, res) => {
   res.status(status).json(payload);
 });
 
-app.post("/api/search", sourceLimiter, auth.requireUser, auth.requireCsrf, async (req, res) => {
+app.post("/api/search", sourceLimiter, async (req, res) => {
   const query = typeof req.body?.query === "string" ? req.body.query : "";
   if (!query.trim() || query.length > 240) {
     return res.status(400).json({ success: false, error: "La búsqueda debe tener entre 1 y 240 caracteres." });
@@ -167,7 +165,7 @@ app.post("/api/search", sourceLimiter, auth.requireUser, auth.requireCsrf, async
   }
 });
 
-app.post("/api/chat", chatLimiter, auth.requireUser, auth.requireCsrf, async (req, res) => {
+app.post("/api/chat", chatLimiter, async (req, res) => {
   const controller = new AbortController();
   let timedOut = false;
   let clientDisconnected = false;
@@ -302,12 +300,15 @@ app.use("/api", (_req, res) => {
   res.status(404).json({ success: false, error: "Ruta API no encontrada." });
 });
 
+app.use("/auth", (_req, res) => {
+  res.status(404).json({ success: false, error: "La autenticación no está disponible en el modo invitado." });
+});
+
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 async function startServer() {
-  await auth.initialize();
   app.listen(PORT, "0.0.0.0", () => {
     console.log("================================");
     console.log("          DARK IA 1.0");
@@ -315,12 +316,12 @@ async function startServer() {
     console.log("================================");
     console.log("Puerto:", PORT);
     console.log("Modelo predeterminado:", DEFAULT_MODEL);
-    console.log("Login Google configurado:", auth.configured);
+    console.log("Modo de acceso: invitado; historiales locales por navegador.");
     console.log("Modos:", Object.keys(MODES).join(", "));
   });
 }
 
 startServer().catch(error => {
-  console.error("No se pudo iniciar la persistencia segura:", error.message);
+  console.error("No se pudo iniciar DARK IA:", error.message);
   process.exitCode = 1;
 });

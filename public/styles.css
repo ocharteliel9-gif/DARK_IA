@@ -1632,76 +1632,6 @@ body {
 .source-citations a small { display: block; margin-top: 3px; color: #9198a5; line-height: 1.4; }
 .source-status { margin-top: 6px; color: #969daa; font-size: 10px; }
 
-.login-gate {
-  position: relative;
-  display: grid;
-  min-height: 100vh;
-  min-height: 100dvh;
-  place-items: center;
-  overflow: hidden;
-  padding: 32px 18px 76px;
-  isolation: isolate;
-  background:
-    radial-gradient(ellipse at 50% 44%, #561b273c 0%, #17121c20 39%, transparent 69%),
-    #090b10;
-}
-.login-gate::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  background-image: linear-gradient(#ffffff04 1px, transparent 1px), linear-gradient(90deg, #ffffff04 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: linear-gradient(transparent, #000 25%, #000 74%, transparent);
-  content: "";
-}
-.login-card {
-  width: min(100%, 458px);
-  padding: 34px clamp(22px, 6vw, 42px) 31px;
-  border: 1px solid #37303a;
-  border-radius: 22px;
-  background: linear-gradient(148deg, #171820f2, #101219f5 70%);
-  box-shadow: 0 30px 100px #0008, 0 0 65px #e8334912, inset 0 1px #ffffff0a;
-  backdrop-filter: blur(16px);
-  animation: studioAppear .45s ease both;
-}
-.login-brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: .8px; }
-.login-brand .brand-mark { width: 38px; height: 38px; border-radius: 12px; }
-.login-brand small { display: block; margin-top: 2px; color: #fc6e7e; font-size: 9px; letter-spacing: 1.8px; }
-.login-signal { display: flex; align-items: center; gap: 8px; margin-top: 44px; color: #b7a2a8; font-size: 9px; font-weight: 750; letter-spacing: 2px; }
-.login-signal i { width: 6px; height: 6px; border-radius: 50%; background: #fb5266; box-shadow: 0 0 12px #fb5266; }
-.login-card h1 { margin: 15px 0 12px; font-size: clamp(30px, 8vw, 42px); line-height: 1.1; letter-spacing: -1.4px; }
-.login-card h1 em { color: #fb586d; font-style: normal; }
-.login-copy { margin: 0; color: #a6a9b3; font-size: 14px; line-height: 1.7; }
-.google-signin {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  width: 100%;
-  min-height: 52px;
-  margin-top: 26px;
-  border: 1px solid #f0f1f3;
-  border-radius: 10px;
-  background: #f3f4f6;
-  color: #1b1c1e;
-  font-weight: 750;
-  cursor: pointer;
-  transition: .18s ease;
-}
-.google-signin:enabled:hover { transform: translateY(-1px); box-shadow: 0 10px 25px #0005; background: #fff; }
-.google-signin:disabled { opacity: .68; cursor: not-allowed; }
-.google-g { color: #4285f4; font: 900 20px/1 Arial, sans-serif; }
-.google-arrow { margin-left: auto; padding-right: 12px; color: #6d7077; font-size: 15px; }
-.login-status { min-height: 21px; margin: 13px 0 0; color: #ff9aa5; font-size: 11px; line-height: 1.5; text-align: center; }
-.login-security { margin: 19px 0 0; color: #9096a3; font-size: 10px; text-align: center; }
-.login-security span { margin-right: 4px; color: #f26979; font-size: 14px; }
-.login-legacy-note { margin: 12px 0 0; color: #707784; font-size: 10px; line-height: 1.5; text-align: center; }
-.login-version { position: absolute; bottom: max(22px, env(safe-area-inset-bottom)); color: #747b88; font-size: 9px; font-weight: 750; letter-spacing: 1.7px; }
-.login-version span { margin-left: 5px; color: #f66b7a; }
-.login-orbit { position: absolute; z-index: -1; width: min(85vw, 570px); aspect-ratio: 1; border: 1px solid #fb52660c; border-radius: 50%; pointer-events: none; }
-.login-orbit-one { transform: scale(.78); }
-.login-orbit-two { transform: scale(1.1); border-color: #fb526608; }
-
 .preferences-dialog {
   width: min(92vw, 440px);
   padding: 24px;
@@ -1738,8 +1668,6 @@ body {
   .welcome-kicker { margin-top: 15px; }
   .welcome-logo { width: 48px; height: 48px; }
   .suggestion { min-height: auto; }
-  .login-card { padding: 27px 23px 25px; border-radius: 18px; }
-  .login-signal { margin-top: 34px; }
   .preferences-dialog { padding: 20px; }
   .source-citations { max-width: 88vw; }
 }
@@ -1748,7 +1676,6 @@ body {
   .disclaimer { font-size: 9px; }
   .sources-toggle { gap: 5px; }
   .model-picker select { max-width: 47vw; }
-  .login-card h1 { font-size: 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
