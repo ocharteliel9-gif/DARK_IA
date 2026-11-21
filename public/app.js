@@ -19,6 +19,7 @@ let chats = [];
 let activeId = null;
 let busy = false;
 let activeController = null;
+let streamRenderQueued = false;
 let freeModelIds = new Set(["openrouter/free"]);
 let settings = { personality: "professional", emojiLevel: "low" };
 
@@ -512,6 +513,20 @@ function renderAssistantContent(container, message, onRetry) {
     return;
   }
 
+  if (message.streaming || message.incomplete) {
+    const partial = document.createElement("div");
+    partial.className = "assistant-text streaming-text";
+    partial.textContent = message.content || "DARK IA está generando una respuesta…";
+    container.append(partial);
+    if (message.streaming) {
+      const cursor = document.createElement("span");
+      cursor.className = "stream-cursor";
+      cursor.setAttribute("aria-hidden", "true");
+      container.append(cursor);
+    }
+    return;
+  }
+
   const text = String(message.content || "");
   const regex = /```([^\n`]*)\n([\s\S]*?)```/g;
 
@@ -656,7 +671,7 @@ function renderMessages() {
     messagesEl.append(row);
   });
 
-  if (busy) {
+  if (busy && !list.some(message => message.role === "assistant" && message.streaming)) {
     const row = document.createElement("div");
     row.className = "message assistant";
 
@@ -1197,6 +1212,64 @@ function buildRequestHistory(messages) {
   return selected.reverse();
 }
 
+async function consumeChatEventStream(response, onEvent) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Este navegador no pudo leer la respuesta progresiva.");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completed = false;
+
+  function dispatch(frame) {
+    let type = "message";
+    const dataLines = [];
+    for (const line of frame.split("\n")) {
+      if (line.startsWith("event:")) type = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+    }
+    if (!dataLines.length) return;
+
+    let payload;
+    try {
+      payload = JSON.parse(dataLines.join("\n"));
+    } catch {
+      throw new Error("DARK IA recibió un evento de respuesta inválido.");
+    }
+    if (type === "error") throw new Error(payload?.error || "El proveedor interrumpió la respuesta.");
+    if (type === "complete") completed = true;
+    onEvent(type, payload);
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/\r\n/g, "\n");
+      let boundary;
+      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+        dispatch(buffer.slice(0, boundary));
+        buffer = buffer.slice(boundary + 2);
+      }
+    }
+    buffer += decoder.decode();
+    buffer = buffer.replace(/\r\n/g, "\n");
+    if (buffer.trim()) dispatch(buffer);
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!completed) throw new Error("La conexión terminó antes de completar la respuesta.");
+}
+
+function scheduleStreamingRender(chat) {
+  if (streamRenderQueued) return;
+  streamRenderQueued = true;
+  requestAnimationFrame(() => {
+    streamRenderQueued = false;
+    if (current()?.id === chat.id) renderMessages();
+  });
+}
+
 async function send(text, { appendUser = true, modeOverride = null } = {}) {
   const content = String(text || "").trim();
   if (!content || busy) return;
@@ -1221,10 +1294,20 @@ async function send(text, { appendUser = true, modeOverride = null } = {}) {
       content.slice(0, 34) +
       (content.length > 34 ? "…" : "");
   }
+  const assistantMessage = {
+    role: "assistant",
+    content: "",
+    model: "Generando…",
+    selectedModel: chat.model,
+    sources: [],
+    streaming: true
+  };
+  chat.messages.push(assistantMessage);
   promptEl.value = "";
   promptEl.style.height = "auto";
   busy = true;
-  activeController = new AbortController();
+  const controller = new AbortController();
+  activeController = controller;
   save(chat);
   renderAll();
   $("sendBtn").disabled = true;
@@ -1240,32 +1323,62 @@ async function send(text, { appendUser = true, modeOverride = null } = {}) {
         mode: requestMode,
         personality: settings.personality,
         emojiLevel: settings.emojiLevel,
-        useSources: $("useSources").checked
+        useSources: $("useSources").checked,
+        stream: true
       }),
-      signal: activeController.signal
+      signal: controller.signal
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Error al consultar la IA.");
-    if (typeof data.answer !== "string") throw new Error("La respuesta de la IA no es válida.");
-    chat.messages.push({
-      role: "assistant",
-      content: data.answer,
-      model: data.model,
-      selectedModel: data.selectedModel,
-      sources: Array.isArray(data.sources) ? data.sources : [],
-      sourceAvailability: data.sourceAvailability || null
-    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.error || `El servidor respondió con HTTP ${response.status}.`);
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("text/event-stream")) {
+      await consumeChatEventStream(response, (event, data) => {
+        if (event === "delta" && typeof data.text === "string") {
+          assistantMessage.content += data.text;
+          scheduleStreamingRender(chat);
+        } else if (event === "complete") {
+          if (!assistantMessage.content && typeof data.answer === "string") assistantMessage.content = data.answer;
+          assistantMessage.model = data.model || assistantMessage.model;
+          assistantMessage.selectedModel = data.selectedModel || chat.model;
+          assistantMessage.sources = Array.isArray(data.sources) ? data.sources : [];
+          assistantMessage.sourceAvailability = data.sourceAvailability || null;
+        }
+      });
+    } else {
+      const data = await response.json();
+      if (typeof data.answer !== "string") throw new Error("La respuesta de la IA no es válida.");
+      assistantMessage.content = data.answer;
+      assistantMessage.model = data.model || assistantMessage.model;
+      assistantMessage.selectedModel = data.selectedModel || chat.model;
+      assistantMessage.sources = Array.isArray(data.sources) ? data.sources : [];
+      assistantMessage.sourceAvailability = data.sourceAvailability || null;
+    }
+    if (!assistantMessage.content.trim()) throw new Error("El modelo no generó una respuesta.");
+    assistantMessage.streaming = false;
+    assistantMessage.incomplete = false;
   } catch (err) {
+    const placeholderIndex = chat.messages.indexOf(assistantMessage);
+    if (placeholderIndex !== -1) {
+      if (assistantMessage.content.trim()) {
+        assistantMessage.streaming = false;
+        assistantMessage.incomplete = true;
+      } else {
+        chat.messages.splice(placeholderIndex, 1);
+      }
+    }
     chat.messages.push({
       role: "assistant",
       content: err.name === "AbortError"
         ? "Generación detenida. El mensaje enviado se conserva en el historial."
-        : "No pude completar la solicitud: " + err.message,
+        : "No pude completar la solicitud: " + String(err.message || "Error de conexión.").slice(0, 500),
       error: err.name !== "AbortError"
     });
   } finally {
     busy = false;
-    activeController = null;
+    if (activeController === controller) activeController = null;
     $("sendBtn").disabled = false;
     $("stopBtn").hidden = true;
     $("modelSelect").disabled = false;
@@ -1278,14 +1391,18 @@ async function retryResponse(errorIndex) {
   const chat = current();
   if (busy || !chat || !chat.messages[errorIndex]?.error) return;
 
-  const previousUser = chat.messages
-    .slice(0, errorIndex)
-    .reverse()
-    .find(message => message.role === "user");
+  let previousUserIndex = -1;
+  for (let index = errorIndex - 1; index >= 0; index -= 1) {
+    if (chat.messages[index]?.role === "user") {
+      previousUserIndex = index;
+      break;
+    }
+  }
+  const previousUser = chat.messages[previousUserIndex];
   if (!previousUser) return;
 
   const prompt = previousUser.content;
-  chat.messages = chat.messages.slice(0, errorIndex);
+  chat.messages = chat.messages.slice(0, previousUserIndex + 1);
   save();
   renderAll();
   await send(prompt, { appendUser: false, modeOverride: previousUser.mode || $("modeSelect").value });
@@ -1370,7 +1487,24 @@ async function initializeApplication() {
     chats = Array.isArray(storedChats)
       ? storedChats.filter(chat => chat && typeof chat.id === "string" && Array.isArray(chat.messages)).slice(0, 200)
       : [];
+    let recoveredInterruptedStream = false;
+    for (const chat of chats) {
+      for (let index = chat.messages.length - 1; index >= 0; index -= 1) {
+        const message = chat.messages[index];
+        if (message?.role !== "assistant" || !message.streaming) continue;
+        message.streaming = false;
+        message.incomplete = Boolean(String(message.content || "").trim());
+        if (!message.incomplete) chat.messages.splice(index, 1);
+        chat.messages.push({
+          role: "assistant",
+          content: "La generación se interrumpió antes de terminar. Puedes reintentar la respuesta.",
+          error: true
+        });
+        recoveredInterruptedStream = true;
+      }
+    }
     activeId = chats[0]?.id || null;
+    if (recoveredInterruptedStream) save();
     const stored = loadJSON(STORAGE_PREFERENCES, {});
     const personalities = ["professional", "cheerful", "direct", "friendly", "creative", "teacher"];
     const emojiLevels = ["none", "low", "medium", "always"];

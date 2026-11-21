@@ -1,4 +1,4 @@
-const MODELS_ENDPOINT = "https://openrouter.ai/api/v1/models";
+const MODELS_ENDPOINT = process.env.OPENROUTER_MODELS_URL || "https://openrouter.ai/api/v1/models";
 const REFRESH_MS = 10 * 60 * 1000;
 const FALLBACK_MODELS = [{ id: "openrouter/free", name: "OpenRouter Free · automático" }];
 let cachedModels = null;

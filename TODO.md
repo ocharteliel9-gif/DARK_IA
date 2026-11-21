@@ -56,6 +56,7 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [x] Crear, eliminar, renombrar y buscar conversaciones independientes en el navegador actual; no hay sincronización ni API de historial remoto.
 - [x] En pantallas estrechas, la burbuja del asistente conserva ancho legible y el modelo/fuentes aparecen debajo, sin comprimir ni fragmentar las palabras.
 - [~] Markdown seguro, bloques de código, copiar respuestas, indicador de generación, detener y reintentar respuestas; formato Markdown básico implementado, falta cubrir sintaxis completa.
+- [~] Las respuestas de modelos compatibles se transmiten progresivamente en el chat; el usuario puede detenerlas y recibe un mensaje visible si la conexión o el proveedor fallan, conservando su mensaje enviado. El protocolo está cubierto por pruebas con proveedor local simulado; queda pendiente comprobarlo en Android y producción.
 - [ ] Editar mensajes, adjuntar archivos y previsualizar imágenes y videos.
 - [ ] Todos los controles publicados funcionan.
 - [x] El selector presenta solo `openrouter/free` y variantes `:free` cuyo precio de entrada y salida sea cero; cambiar de modelo crea un chat asociado a esa opción y no recurre a modelos de pago.
@@ -97,7 +98,7 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [x] Arreglar el error de sintaxis que impedía ejecutar el cliente y quitar el enfoque automático que abría el teclado virtual; commit `a0c80f0` ya está en `main`.
 - [x] Mejorar historial local para restaurar el chat al recargar, no perder el mensaje ante errores, editar/reenviar, renombrar, buscar y eliminar chats; selector real de modelos permitidos, copia de respuestas, reintento, cancelación, timeout y protección de tasa.
 - [x] Aplicar tema negro/rojo y comprobar el layout y los controles del Studio en Chromium a 390 px y 1280 px; sin desbordamiento horizontal.
-- [x] En esta iteración: `npm test` pasa 21 pruebas; `node --check` pasa para servidor, cliente, módulos y pruebas; `git diff --check` está limpio; `npm audit --omit=dev` reporta cero vulnerabilidades conocidas de producción.
+- [x] En esta iteración: `npm test` pasa 25 pruebas, incluida integración SSE con un proveedor local simulado; `node --check` pasa para servidor, cliente, módulos y pruebas; `git diff --check` está limpio. No se probó en un dispositivo Android real.
 - [x] Sin `OPENROUTER_API_KEY` no se simulan respuestas de modelo; el saludo exacto funciona localmente y los chats se persisten en el navegador. Las respuestas externas requieren configurar OpenRouter.
 - [ ] Requerimientos externos multimodales pendientes: modelo OpenRouter compatible con visión; extractor multimodal y procesamiento de video/audio disponible en el entorno; servicios de búsqueda/moderación con límites conocidos.
 - [ ] Pruebas de producción y en dispositivo Android real requieren deployment y acceso de prueba; no se simularán ni se reportarán como realizadas sin evidencia.

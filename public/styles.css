@@ -1631,6 +1631,18 @@ body {
   letter-spacing: .1px;
 }
 .model-meta strong { color: #c3c8d2; font-weight: 600; }
+.streaming-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.stream-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: text-bottom;
+  border-radius: 2px;
+  background: #ff596d;
+  animation: darkia-stream-cursor 1s steps(2, start) infinite;
+}
+@keyframes darkia-stream-cursor { to { visibility: hidden; } }
 .source-citations {
   display: flex;
   flex-direction: column;

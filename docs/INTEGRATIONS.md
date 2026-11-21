@@ -10,6 +10,8 @@ Requiere Node.js 20 o superior. Ejecuta `npm ci`, copia `.env.example` a `.env` 
 
 La respuesta literal solicitada para el saludo «hola» se genera localmente sin proveedor externo. Para otras solicitudes, el servidor necesita `OPENROUTER_API_KEY`; sin ella informa el error y no inventa una respuesta. El catálogo solo expone `openrouter/free` y variantes `:free` con precio reportado cero; disponibilidad, cuota y rendimiento cambian según el proveedor y no se garantiza uso ilimitado.
 
+El chat solicita respuestas progresivas cuando el proveedor admite Server-Sent Events (SSE). DARK IA muestra cada fragmento mientras llega, permite detener la generación y conserva el mensaje enviado y cualquier texto parcial si la conexión falla. Se mantiene la respuesta JSON para clientes antiguos y el saludo local.
+
 ## Variables del servidor
 
 ```dotenv

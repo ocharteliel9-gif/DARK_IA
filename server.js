@@ -7,6 +7,7 @@ import { validateCode } from "./src/code-validator.js";
 import { searchPublicSources, buildSourceContext } from "./src/search.js";
 import { listFreeModels, isFreeModelId } from "./src/models.js";
 import { PERSONALITIES, EMOJI_INSTRUCTIONS, EXACT_GREETING, isExactGreeting, isValidAssistantPreferences } from "./src/chat-policy.js";
+import { consumeOpenRouterStream } from "./src/openrouter-stream.js";
 
 dotenv.config();
 
@@ -30,7 +31,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
 const DEFAULT_MODEL = "openrouter/free";
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_URL = process.env.OPENROUTER_URL || "https://openrouter.ai/api/v1/chat/completions";
 const FREE_MODEL_PATTERN = /^[a-z0-9._-]+\/[a-z0-9._-]+:free$/i;
 
 const MODES = {
@@ -92,6 +93,28 @@ function validateMessages(messages) {
     message.content.length <= 12_000
   );
   return valid && messages.reduce((total, message) => total + message.content.length, 0) <= 22_000;
+}
+
+function writeSseEvent(res, event, payload) {
+  if (!res.writableEnded && !res.destroyed) {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+  }
+}
+
+function extractAnswer(content) {
+  return Array.isArray(content)
+    ? content.map(part => typeof part?.text === "string" ? part.text : "").join("").trim()
+    : String(content || "").trim();
+}
+
+function startSseResponse(res) {
+  res.status(200).set({
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no"
+  });
+  res.flushHeaders?.();
 }
 
 app.get("/api/status", (_req, res) => {
@@ -187,11 +210,15 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       model,
       personality = "professional",
       emojiLevel = "low",
-      useSources = false
+      useSources = false,
+      stream = false
     } = req.body || {};
 
     if (!validateMessages(messages)) {
       return res.status(400).json({ success: false, error: "Historial de mensajes no válido." });
+    }
+    if (typeof stream !== "boolean") {
+      return res.status(400).json({ success: false, error: "La opción de transmisión no es válida." });
     }
     if (!Object.hasOwn(MODES, mode)) {
       return res.status(400).json({ success: false, error: "El modo seleccionado no existe." });
@@ -202,7 +229,7 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
 
     const lastUserMessage = [...messages].reverse().find(message => message.role === "user");
     if (isExactGreeting(lastUserMessage?.content)) {
-      return res.json({
+      const greeting = {
         success: true,
         answer: EXACT_GREETING,
         model: "DARK IA · saludo exacto (sin modelo externo)",
@@ -211,7 +238,12 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
         usage: null,
         sources: [],
         sourceAvailability: null
-      });
+      };
+      if (!stream) return res.json(greeting);
+      startSseResponse(res);
+      writeSseEvent(res, "delta", { text: greeting.answer });
+      writeSseEvent(res, "complete", greeting);
+      return res.end();
     }
 
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -240,7 +272,8 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
         ...messages.map(message => ({ role: message.role, content: message.content }))
       ],
       temperature: 0.7,
-      max_tokens: 4096
+      max_tokens: 4096,
+      ...(stream ? { stream: true } : {})
     };
 
     const response = await fetch(OPENROUTER_URL, {
@@ -248,11 +281,66 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        Accept: stream ? "text/event-stream" : "application/json",
         "X-Title": "DARK IA 1.0"
       },
       body: JSON.stringify(requestBody),
       signal: controller.signal
     });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const providerError = errorData?.error?.message || "No se pudo obtener una respuesta.";
+      console.error("OpenRouter:", response.status, providerError);
+      return res.status(502).json({
+        success: false,
+        error: providerError
+      });
+    }
+
+    if (stream) {
+      startSseResponse(res);
+      try {
+        let answer;
+        let providerModel = "OpenRouter Free · automático";
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("text/event-stream")) {
+          const streamed = await consumeOpenRouterStream(response.body, text => {
+            writeSseEvent(res, "delta", { text });
+          });
+          answer = streamed.answer;
+          providerModel = streamed.model || response.headers.get("x-openrouter-model") || providerModel;
+        } else {
+          let streamedData;
+          try {
+            streamedData = await response.json();
+          } catch {
+            throw new Error("Respuesta inválida del proveedor.");
+          }
+          answer = extractAnswer(streamedData?.choices?.[0]?.message?.content);
+          providerModel = streamedData?.model || providerModel;
+          if (answer) writeSseEvent(res, "delta", { text: answer });
+        }
+        if (!answer) throw new Error("El modelo no generó una respuesta.");
+        writeSseEvent(res, "complete", {
+          success: true,
+          model: providerModel,
+          selectedModel,
+          mode,
+          sources: sourceResult.sources,
+          sourceAvailability: sourceResult.availability
+        });
+      } catch (error) {
+        if (!clientDisconnected && !res.destroyed) {
+          writeSseEvent(res, "error", {
+            error: timedOut
+              ? "La respuesta tardó demasiado. Puedes reintentar sin perder el mensaje."
+              : error?.message || "No se pudo completar la respuesta del proveedor."
+          });
+        }
+      }
+      return res.end();
+    }
 
     let data;
     try {
@@ -260,18 +348,7 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     } catch {
       return res.status(502).json({ success: false, error: "Respuesta inválida del proveedor." });
     }
-    if (!response.ok) {
-      console.error("OpenRouter:", response.status, data?.error?.message || "Error desconocido");
-      return res.status(502).json({
-        success: false,
-        error: data?.error?.message || "No se pudo obtener una respuesta."
-      });
-    }
-
-    const result = data?.choices?.[0]?.message?.content;
-    const answer = Array.isArray(result)
-      ? result.map(part => part.text || "").join("").trim()
-      : String(result || "").trim();
+    const answer = extractAnswer(data?.choices?.[0]?.message?.content);
     if (!answer) return res.status(502).json({ success: false, error: "El modelo no generó una respuesta." });
 
     return res.json({
@@ -287,9 +364,17 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
   } catch (error) {
     if (clientDisconnected || res.destroyed) return;
     if (timedOut) {
+      if (res.headersSent) {
+        writeSseEvent(res, "error", { error: "La respuesta tardó demasiado. Puedes reintentar sin perder el mensaje." });
+        return res.end();
+      }
       return res.status(504).json({ success: false, error: "La respuesta tardó demasiado. Puedes reintentar sin perder el mensaje." });
     }
     console.error("DARK IA ERROR:", error);
+    if (res.headersSent) {
+      writeSseEvent(res, "error", { error: "Error interno. Intenta nuevamente." });
+      return res.end();
+    }
     return res.status(500).json({ success: false, error: "Error interno. Intenta nuevamente." });
   } finally {
     clearTimeout(timeout);
