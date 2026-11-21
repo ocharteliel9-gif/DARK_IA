@@ -1,4 +1,4 @@
-const $ = id => document.getElementById(id);
+pconst $ = id => document.getElementById(id);
 
 // ======================================
 // DARK IA 3.0 - CONFIGURACIÓN
@@ -884,9 +884,6 @@ $("clearBtn").onclick = () => {
   toast("Conversación borrada.");
 };
 
-$("menuBtn").onclick = () => {
-  $("sidebar").classList.toggle("op
-  
 $("menuBtn").onclick = () => {
   $("sidebar").classList.toggle("open");
 };
