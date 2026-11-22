@@ -358,21 +358,63 @@ function safeText(text) {
 }
 
 function formatPlainText(text) {
-  let out = safeText(text);
+  const inline = value => safeText(value)
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  const blocks = [];
+  const lines = String(text).replace(/\r\n?/g, "\n").split("\n");
+  let paragraph = [];
+  let listType = null;
 
-  out = out.replace(
-    /`([^`\n]+)`/g,
-    "<code>$1</code>"
-  );
+  const closeList = () => {
+    if (listType) blocks.push(`</${listType}>`);
+    listType = null;
+  };
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    blocks.push(`<p>${paragraph.map(inline).join("<br>")}</p>`);
+    paragraph = [];
+  };
 
-  out = out.replace(/^###\s+(.+)$/gm, "<h3>$1</h3>");
-  out = out.replace(/^##\s+(.+)$/gm, "<h2>$1</h2>");
-  out = out.replace(/^#\s+(.+)$/gm, "<h1>$1</h1>");
-  out = out.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
-  out = out.replace(/^\s*[-*]\s+(.+)$/gm, "• $1");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushParagraph();
+      closeList();
+      continue;
+    }
 
-  return out.replace(/\n/g, "<br>");
+    const heading = /^(#{1,3})\s+(.+)$/.exec(trimmed);
+    if (heading) {
+      flushParagraph();
+      closeList();
+      const level = heading[1].length;
+      blocks.push(`<h${level}>${inline(heading[2])}</h${level}>`);
+      continue;
+    }
+
+    const listItem = /^\s*(?:[-*•]\s+)(.+)$/.exec(line);
+    const orderedItem = /^\s*\d+[.)]\s+(.+)$/.exec(line);
+    if (listItem || orderedItem) {
+      flushParagraph();
+      const nextType = orderedItem ? "ol" : "ul";
+      if (listType !== nextType) {
+        closeList();
+        blocks.push(`<${nextType}>`);
+        listType = nextType;
+      }
+      blocks.push(`<li>${inline((orderedItem || listItem)[1])}</li>`);
+      continue;
+    }
+
+    closeList();
+    paragraph.push(line);
+  }
+
+  flushParagraph();
+  closeList();
+  return blocks.join("");
 }
 
 // ======================================
@@ -515,6 +557,46 @@ function downloadCode(code, filename) {
 // TARJETAS DE CÓDIGO
 // ======================================
 
+const CODE_KEYWORDS = "abstract as async await bool break byte case catch char class const continue default def delete do double else enum export extends false finally float fn for from func function if implements import in insert int interface into let long match mut new null of package pass private protected pub public return select self set short static str string struct super switch table this throw true try type typeof undefined update use var void where while";
+const CODE_KEYWORD_SET = new Set(CODE_KEYWORDS.toLowerCase().split(/\s+/));
+const CODE_TOKEN_PATTERN = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|<!--[\s\S]*?-->|\/\/[\n\s\S]*?(?=\n|$)|\/\*[\s\S]*?\*\/|<\/?[A-Za-z][\w:.-]*|\/?>|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b|\b(?:abstract|as|async|await|bool|break|byte|case|catch|char|class|const|continue|default|def|delete|do|double|else|enum|export|extends|false|finally|float|fn|for|from|func|function|if|implements|import|in|insert|int|interface|into|let|long|match|mut|new|null|of|package|pass|private|protected|pub|public|return|select|self|set|short|static|str|string|struct|super|switch|table|this|throw|true|try|type|typeof|undefined|update|use|var|void|where|while)\b|(?:===|!==|=>|==|!=|<=|>=|\+\+|&&|\|\||[{}()\[\].,;:+\/%!?=<>*~\-]))/i;
+
+function highlightCodeLines(lines, language) {
+  const code = lines.join("\n");
+  const lang = String(language || "").toLowerCase();
+  const hashComments = ["python", "py", "bash", "sh", "shell", "yaml", "yml", "ruby"].includes(lang);
+  const sqlComments = lang === "sql";
+  const tokenSource = CODE_TOKEN_PATTERN.source +
+    (hashComments ? "|#[^\\n]*" : "") +
+    (sqlComments ? "|--[^\\n]*" : "");
+  const tokenPattern = new RegExp(tokenSource, "gi");
+  const rows = [[]];
+  let cursor = 0;
+
+  const append = (value, kind = "") => {
+    const pieces = value.split("\n");
+    pieces.forEach((piece, index) => {
+      if (piece) rows[rows.length - 1].push({ text: piece, kind });
+      if (index < pieces.length - 1) rows.push([]);
+    });
+  };
+
+  for (const match of code.matchAll(tokenPattern)) {
+    append(code.slice(cursor, match.index));
+    const token = match[0];
+    let kind = "operator";
+    if (/^["'`]/.test(token)) kind = "string";
+    else if (/^(?:\/\/|\/\*|<!--|--|#)/.test(token)) kind = "comment";
+    else if (/^<\/?[a-z]/i.test(token)) kind = "tag";
+    else if (/^\d/.test(token)) kind = "number";
+    else if (CODE_KEYWORD_SET.has(token.toLowerCase())) kind = "keyword";
+    append(token, kind);
+    cursor = match.index + token.length;
+  }
+  append(code.slice(cursor));
+  return rows;
+}
+
 function createCodeCard(info, code) {
   const card = document.createElement("section");
   card.className = "code-result-card";
@@ -552,6 +634,7 @@ function createCodeCard(info, code) {
   preview.className = "code-result-preview";
 
   const codeElement = document.createElement("code");
+  codeElement.className = "syntax-code";
   preview.append(codeElement);
 
   const more = document.createElement("button");
@@ -559,9 +642,36 @@ function createCodeCard(info, code) {
   more.className = "code-more-btn";
 
   function updatePreview() {
-    codeElement.textContent = (
-      expanded ? lines : lines.slice(0, previewLimit)
-    ).join("\n");
+    const visibleLines = expanded ? lines : lines.slice(0, previewLimit);
+    const highlightedLines = highlightCodeLines(visibleLines, info.language);
+    const renderedLines = document.createDocumentFragment();
+
+    highlightedLines.forEach((tokens, index) => {
+      const row = document.createElement("span");
+      row.className = "code-line";
+      const number = document.createElement("span");
+      number.className = "code-line-number";
+      number.textContent = String(index + 1);
+      number.setAttribute("aria-hidden", "true");
+      const content = document.createElement("span");
+      content.className = "code-line-content";
+
+      if (!tokens.length) content.textContent = "\u00a0";
+      for (const token of tokens) {
+        if (!token.kind) {
+          content.append(document.createTextNode(token.text));
+          continue;
+        }
+        const highlighted = document.createElement("span");
+        highlighted.className = `syntax-${token.kind}`;
+        highlighted.textContent = token.text;
+        content.append(highlighted);
+      }
+
+      row.append(number, content);
+      renderedLines.append(row);
+    });
+    codeElement.replaceChildren(renderedLines);
 
     more.hidden = totalLines <= previewLimit;
 

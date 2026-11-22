@@ -86,6 +86,9 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [x] El diseño propio es más llamativo, mantiene tema rojo/negro y disposición tipo centro de control inspirada solo en patrones generales de productividad; no copia marca ni activos de Manus.
 - [x] El menú conserva Chat, Programación, Studio, chats, invitado y ajustes, y recibe un acabado futurista, limpio, responsive y accesible sin romper sus controles existentes.
 - [x] La entrada muestra “DARK IA” apagado, recorre sus letras con un barrido neón y deja todo el nombre iluminado; es breve, se puede saltar, respeta `prefers-reduced-motion` y no elimina funciones de Chat, Programación ni Studio.
+- [x] La barra de mensajes elimina el borde rojo intenso, usa bordes sutiles, esquinas redondeadas e iluminación roja discreta; conserva adjuntar y enviar, integra sus controles sin tamaños o alineaciones excesivos y se adapta a móviles.
+- [x] Las respuestas no dejan espacios vacíos grandes y sus tarjetas se ajustan al contenido corto o largo; los botones Copiar/Descargar se distribuyen con claridad; los bloques de código tienen sintaxis resaltada, números de línea y desplazamiento horizontal cuando hace falta; títulos, párrafos, listas y código tienen separación legible.
+- [~] El acabado general prioriza negro y gris oscuro con rojo neón discreto, sin modificar servidor, API, IA ni historial; envío, adjuntos y controles pasan pruebas responsive sin desbordamiento en Chromium de escritorio y emulación móvil (320/390 px). No se probó en un Android físico.
 - [x] La versión visible y el título del producto dicen “DARK IA 1.0”; también se corrigen las etiquetas visibles de Studio, sin modificar versiones históricas del código.
 
 ## 14. Pruebas antes de declarar funciones terminadas
