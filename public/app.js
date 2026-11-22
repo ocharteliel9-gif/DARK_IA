@@ -1901,9 +1901,60 @@ function openPreferences() {
   closeSidebar();
   $("personalitySelect").value = settings.personality;
   $("emojiLevelSelect").value = settings.emojiLevel;
+  updatePreferenceDescriptions();
   const dialog = $("preferencesDialog");
   if (typeof dialog.showModal === "function") dialog.showModal();
   else dialog.setAttribute("open", "");
+}
+
+function updatePreferenceDescriptions() {
+  const personalityDescriptions = {
+    professional: "Tono serio, claro y respetuoso.",
+    cheerful: "Cálido y optimista; celebra avances y usa humor ligero sin exagerar.",
+    direct: "Frío y sobrio: va al grano con franqueza, pero sin hostilidad.",
+    friendly: "Cercano, amable y atento a las necesidades de la persona.",
+    creative: "Imaginativo y original, manteniendo claridad y utilidad.",
+    teacher: "Didáctico y paciente; explica paso a paso y comprueba conceptos."
+  };
+  const emojiDescriptions = {
+    none: "Cero emojis, stickers o emoticonos.",
+    low: "Hasta 3 emojis por respuesta completa.",
+    medium: "Uso moderado: 3–5 en respuestas largas, menos que en «Usar siempre».",
+    always: "Uso frecuente: 6–10 en respuestas largas y al menos 1 en una respuesta breve."
+  };
+  $("personalityDescription").textContent = personalityDescriptions[$("personalitySelect").value] || personalityDescriptions.professional;
+  $("emojiLevelDescription").textContent = emojiDescriptions[$("emojiLevelSelect").value] || emojiDescriptions.none;
+}
+
+function startIntroAnimation() {
+  const splash = $("introSplash");
+  const appShell = $("appShell");
+  const skipButton = $("skipIntro");
+  if (!splash || !appShell || !skipButton) return;
+
+  const reduceMotion = typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduceMotion) {
+    splash.hidden = true;
+    return;
+  }
+
+  appShell.inert = true;
+  let exitTimer;
+  const dismiss = () => {
+    if (splash.classList.contains("is-exiting")) return;
+    window.clearTimeout(exitTimer);
+    const focusWasOnSkip = document.activeElement === skipButton;
+    splash.classList.add("is-exiting");
+    window.setTimeout(() => {
+      splash.hidden = true;
+      appShell.inert = false;
+      if (focusWasOnSkip) $("menuBtn").focus();
+    }, 450);
+  };
+
+  skipButton.addEventListener("click", dismiss, { once: true });
+  exitTimer = window.setTimeout(dismiss, 3000);
 }
 
 function persistPreferences() {
@@ -1925,6 +1976,8 @@ $("openSettings").addEventListener("click", openPreferences);
 $("mobileSettings").addEventListener("click", openPreferences);
 $("closePreferences").addEventListener("click", () => $("preferencesDialog").close?.());
 $("savePreferences").addEventListener("click", persistPreferences);
+$("personalitySelect").addEventListener("change", updatePreferenceDescriptions);
+$("emojiLevelSelect").addEventListener("change", updatePreferenceDescriptions);
 $("useSources").addEventListener("change", () => {
   settings.useSources = $("useSources").checked;
   if (STORAGE_PREFERENCES) {
@@ -2028,6 +2081,8 @@ document.querySelectorAll(".suggestion").forEach(button => {
     send(button.dataset.prompt || "");
   });
 });
+
+startIntroAnimation();
 
 // Abrir el chat y el Studio únicamente tras validar la sesión en el servidor.
 initializeApplication();

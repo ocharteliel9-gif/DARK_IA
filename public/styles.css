@@ -1716,6 +1716,102 @@ body {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
+/* Intro de marca: la luz recorre el wordmark y deja cada letra encendida. */
+.intro-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 48%, #151019 0%, #090a10 48%, #05060a 100%);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity .45s ease, visibility 0s linear 0s;
+}
+.intro-splash[hidden] { display: none !important; }
+.intro-splash.is-exiting {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .45s ease, visibility 0s linear .45s;
+}
+.intro-wordmark {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .055em;
+  isolation: isolate;
+  font-family: "Arial Black", system-ui, sans-serif;
+  font-size: clamp(3rem, 12vw, 8rem);
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: .035em;
+  white-space: nowrap;
+}
+.intro-letter {
+  position: relative;
+  z-index: 1;
+  color: #17171d;
+  -webkit-text-stroke: 1px #35252d;
+  text-shadow: 0 0 1px #35121b;
+  animation: intro-letter-light 1.35s cubic-bezier(.2,.75,.2,1) var(--letter-delay) both;
+}
+.intro-gap { width: .32em; flex: 0 0 .32em; }
+.intro-wordmark::after {
+  position: absolute;
+  z-index: 2;
+  top: -35%;
+  bottom: -35%;
+  left: -14%;
+  width: 13%;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, #ff526c55 22%, #fff 48%, #ff7187aa 67%, transparent);
+  filter: blur(7px);
+  mix-blend-mode: screen;
+  animation: intro-neon-sweep 1.85s cubic-bezier(.32,.06,.24,1) .28s both;
+}
+.intro-skip {
+  position: absolute;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  min-height: 40px;
+  padding: 0 15px;
+  border: 1px solid #6c3542;
+  border-radius: 9px;
+  background: #11121bd9;
+  color: #d2c7cc;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color .18s ease, color .18s ease, background .18s ease;
+}
+.intro-skip:hover { border-color: #ff6479; background: #21151d; color: #fff; }
+.intro-skip:focus-visible { outline: 2px solid #ff7184; outline-offset: 3px; }
+@keyframes intro-letter-light {
+  0%, 23% { color: #17171d; text-shadow: 0 0 1px #35121b; -webkit-text-stroke-color: #35252d; }
+  31% { color: #fff6f8; text-shadow: 0 0 10px #ff405f, 0 0 24px #ff405f, 0 0 38px #d51c54; -webkit-text-stroke-color: #fff; }
+  50%, 100% { color: #ff6479; text-shadow: 0 0 7px #ff405f, 0 0 20px #f12852, 0 0 42px #b80d48; -webkit-text-stroke-color: #ff9aa9; }
+}
+@keyframes intro-neon-sweep {
+  0% { left: -14%; opacity: 0; }
+  8% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { left: 108%; opacity: 0; }
+}
+.preference-hint {
+  margin: 0;
+  color: #8f96a3;
+  font-size: 11px;
+  line-height: 1.45;
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro-splash { display: none !important; }
+  .intro-wordmark::after { animation: none; }
+  .intro-letter { animation: none; color: #ff6479; text-shadow: 0 0 8px #f12852; }
+}
+
 
 /* Refinamiento profesional del menú y los adjuntos */
 .sidebar {

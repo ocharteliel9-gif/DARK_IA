@@ -9,7 +9,20 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="app">
+  <div class="intro-splash" id="introSplash" role="group" aria-label="Animación de entrada de DARK IA">
+    <div class="intro-wordmark" aria-hidden="true">
+      <span class="intro-letter" style="--letter-delay: .32s">D</span>
+      <span class="intro-letter" style="--letter-delay: .45s">A</span>
+      <span class="intro-letter" style="--letter-delay: .58s">R</span>
+      <span class="intro-letter" style="--letter-delay: .71s">K</span>
+      <span class="intro-gap"></span>
+      <span class="intro-letter" style="--letter-delay: .97s">I</span>
+      <span class="intro-letter" style="--letter-delay: 1.10s">A</span>
+    </div>
+    <button class="intro-skip" id="skipIntro" type="button">Saltar animación</button>
+  </div>
+
+  <div class="app" id="appShell">
     <button class="sidebar-backdrop" id="sidebarBackdrop" type="button" aria-label="Cerrar menú" hidden></button>
     <aside class="sidebar" id="sidebar">
       <div class="brand">
@@ -108,7 +121,7 @@
     </div>
     <p class="preferences-intro">Elige el estilo de respuesta. Estas preferencias se guardan solo en este navegador.</p>
     <label class="preference-field" for="personalitySelect"><span>Personalidad</span>
-      <select id="personalitySelect">
+      <select id="personalitySelect" aria-describedby="personalityDescription">
         <option value="professional">Profesional</option>
         <option value="cheerful">Alegre</option>
         <option value="direct">Fría y directa</option>
@@ -116,14 +129,16 @@
         <option value="creative">Creativa</option>
         <option value="teacher">Docente</option>
       </select>
+      <p class="preference-hint" id="personalityDescription">Tono serio, claro y respetuoso.</p>
     </label>
     <label class="preference-field" for="emojiLevelSelect"><span>Uso de emojis</span>
-      <select id="emojiLevelSelect">
+      <select id="emojiLevelSelect" aria-describedby="emojiLevelDescription">
         <option value="none">Ninguno</option>
-        <option value="low">Bajo</option>
-        <option value="medium">Medio</option>
-        <option value="always">Usar siempre</option>
+        <option value="low">Bajo · máximo 3</option>
+        <option value="medium">Medio · moderado</option>
+        <option value="always">Usar siempre · alto</option>
       </select>
+      <p class="preference-hint" id="emojiLevelDescription">Hasta 3 emojis por respuesta.</p>
     </label>
       <div class="privacy-note"><span>◈</span><p>Los chats, preferencias y proyectos se guardan en este navegador. No se sincronizan con otros dispositivos; otras personas que usen este mismo perfil podrían verlos.</p></div>
     <button class="preferences-save" id="savePreferences" type="button">Guardar ajustes</button>

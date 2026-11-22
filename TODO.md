@@ -75,8 +75,8 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [x] `openrouter/free` se presenta como router que consulta modelos ofrecidos a coste cero, con disponibilidad y límites variables; el filtrado usa variantes con precio cero y no existe fallback a modelos de pago ni elusión de cobros comerciales.
 
 ## 12. Personalización y saludo
-- [x] En Ajustes se puede elegir personalidad profesional, alegre, fría/directa, amable, creativa o docente; el servidor valida opciones permitidas y las aplica a las instrucciones del modelo.
-- [x] En Ajustes el nivel de emojis se puede seleccionar exactamente entre “Ninguno”, “Bajo”, “Medio” y “Usar siempre”; las preferencias se guardan en el espacio invitado de este navegador.
+- [x] En Ajustes se puede elegir personalidad profesional, alegre, fría/directa, amable, creativa o docente; “alegre” es cálida y optimista sin exagerar y “fría/directa” es concisa y franca sin hostilidad; el servidor valida las opciones y las aplica al modelo.
+- [x] En Ajustes el nivel de emojis se puede seleccionar exactamente entre “Ninguno” (cero), “Bajo” (máximo 3 por respuesta), “Medio” (3–5 en respuestas largas, menos que “Usar siempre”) y “Usar siempre” (6–10 en respuestas largas y al menos 1 en respuestas breves); las preferencias se guardan en el espacio invitado de este navegador.
 - [x] Si el mensaje es solo «hola», con espacios exteriores o cambios de mayúsculas, la respuesta es exactamente «Hola soy una IA creada por vip modifier un creador de aplicaciones para el rendimiento no tan conocido».
 
 ## 13. Arquitectura y presentación
@@ -84,7 +84,8 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [ ] Arquitectura mantenible y escalable que conserva funciones actuales.
 - [x] Dependencias de API/servicio/permisos/configuración manual se indican explícitamente.
 - [x] El diseño propio es más llamativo, mantiene tema rojo/negro y disposición tipo centro de control inspirada solo en patrones generales de productividad; no copia marca ni activos de Manus.
-- [x] El menú conserva chats, invitado, ajustes y Studio, y recibe un acabado futurista, limpio, responsive y accesible sin romper sus controles existentes.
+- [x] El menú conserva Chat, Programación, Studio, chats, invitado y ajustes, y recibe un acabado futurista, limpio, responsive y accesible sin romper sus controles existentes.
+- [x] La entrada muestra “DARK IA” apagado, recorre sus letras con un barrido neón y deja todo el nombre iluminado; es breve, se puede saltar, respeta `prefers-reduced-motion` y no elimina funciones de Chat, Programación ni Studio.
 - [x] La versión visible y el título del producto dicen “DARK IA 1.0”; también se corrigen las etiquetas visibles de Studio, sin modificar versiones históricas del código.
 
 ## 14. Pruebas antes de declarar funciones terminadas

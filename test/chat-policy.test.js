@@ -22,3 +22,18 @@ test("las personalidades y los niveles de emojis se limitan a opciones declarada
   assert.equal(isValidAssistantPreferences("professional", "high", false), false);
   assert.equal(isValidAssistantPreferences("professional", "low", "yes"), false);
 });
+
+test("los niveles de emojis tienen intensidad y límites inequívocos", () => {
+  assert.match(EMOJI_INSTRUCTIONS.none, /ningún emoji/i);
+  assert.match(EMOJI_INSTRUCTIONS.low, /máximo 3/i);
+  assert.match(EMOJI_INSTRUCTIONS.medium, /3–5/i);
+  assert.match(EMOJI_INSTRUCTIONS.medium, /menos que en el nivel Usar siempre/i);
+  assert.match(EMOJI_INSTRUCTIONS.always, /6–10/i);
+});
+
+test("alegre es cálido y positivo; frío/directo es conciso sin hostilidad", () => {
+  assert.match(PERSONALITIES.cheerful, /optimista/i);
+  assert.match(PERSONALITIES.cheerful, /sin exagerar/i);
+  assert.match(PERSONALITIES.direct, /conciso/i);
+  assert.match(PERSONALITIES.direct, /evita insultos/i);
+});
