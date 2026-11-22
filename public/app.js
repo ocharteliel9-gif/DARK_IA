@@ -21,7 +21,16 @@ let busy = false;
 let activeController = null;
 let streamRenderQueued = false;
 let freeModelIds = new Set(["openrouter/free"]);
+let modelCapabilities = new Map([["openrouter/free", { supportsVision: true, dynamicVisionRouting: true }]]);
 let settings = { personality: "professional", emojiLevel: "low" };
+let pendingPhoto = null;
+let pendingPhotoObjectUrl = null;
+let photoProcessing = false;
+const photoObjectUrls = new Map();
+const MAX_COMPRESSED_PHOTO_BYTES = 600 * 1024;
+const MAX_SOURCE_PHOTO_BYTES = 10 * 1024 * 1024;
+const MAX_PHOTO_PIXELS = 16_000_000;
+const MAX_PHOTO_DIMENSION = 16_384;
 
 let projectFiles = [];
 let projectHistory = [];
@@ -121,6 +130,138 @@ function makeId() {
       })();
 }
 
+function parsePhotoDimensions(bytes, mimeType) {
+  if (!(bytes instanceof Uint8Array)) return null;
+  let dimensions = null;
+
+  if (mimeType === "image/png" && bytes.length >= 24 &&
+      [137, 80, 78, 71, 13, 10, 26, 10].every((value, index) => bytes[index] === value) &&
+      String.fromCharCode(...bytes.subarray(12, 16)) === "IHDR") {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    dimensions = { width: view.getUint32(16, false), height: view.getUint32(20, false) };
+  } else if (mimeType === "image/jpeg" && bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    const startOfFrame = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+    let offset = 2;
+    while (offset < bytes.length) {
+      if (bytes[offset] !== 0xff) break;
+      while (bytes[offset] === 0xff) offset += 1;
+      if (offset >= bytes.length) break;
+      const marker = bytes[offset++];
+      if (marker === 0xda || marker === 0xd9) break;
+      if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+      if (offset + 2 > bytes.length) break;
+      const segmentLength = (bytes[offset] << 8) | bytes[offset + 1];
+      if (segmentLength < 2 || offset + segmentLength > bytes.length) break;
+      if (startOfFrame.has(marker) && segmentLength >= 7) {
+        dimensions = {
+          height: (bytes[offset + 3] << 8) | bytes[offset + 4],
+          width: (bytes[offset + 5] << 8) | bytes[offset + 6]
+        };
+        break;
+      }
+      offset += segmentLength;
+    }
+  } else if (mimeType === "image/webp" && bytes.length >= 20 &&
+      String.fromCharCode(...bytes.subarray(0, 4)) === "RIFF" &&
+      String.fromCharCode(...bytes.subarray(8, 12)) === "WEBP") {
+    let offset = 12;
+    while (offset + 8 <= bytes.length) {
+      const chunkType = String.fromCharCode(...bytes.subarray(offset, offset + 4));
+      const chunkLength = bytes[offset + 4] + bytes[offset + 5] * 256 + bytes[offset + 6] * 65_536 + bytes[offset + 7] * 16_777_216;
+      const dataOffset = offset + 8;
+      if (dataOffset + chunkLength > bytes.length) break;
+      if (chunkType === "VP8X" && chunkLength >= 10) {
+        dimensions = {
+          width: 1 + bytes[dataOffset + 4] + bytes[dataOffset + 5] * 256 + bytes[dataOffset + 6] * 65_536,
+          height: 1 + bytes[dataOffset + 7] + bytes[dataOffset + 8] * 256 + bytes[dataOffset + 9] * 65_536
+        };
+        break;
+      }
+      if (chunkType === "VP8L" && chunkLength >= 5 && bytes[dataOffset] === 0x2f) {
+        dimensions = {
+          width: 1 + bytes[dataOffset + 1] + ((bytes[dataOffset + 2] & 0x3f) << 8),
+          height: 1 + ((bytes[dataOffset + 2] & 0xc0) >> 6) + (bytes[dataOffset + 3] << 2) + ((bytes[dataOffset + 4] & 0x0f) << 10)
+        };
+        break;
+      }
+      if (chunkType === "VP8 " && chunkLength >= 10 && bytes[dataOffset + 3] === 0x9d &&
+          bytes[dataOffset + 4] === 0x01 && bytes[dataOffset + 5] === 0x2a) {
+        dimensions = {
+          width: ((bytes[dataOffset + 6] | (bytes[dataOffset + 7] << 8)) & 0x3fff),
+          height: ((bytes[dataOffset + 8] | (bytes[dataOffset + 9] << 8)) & 0x3fff)
+        };
+        break;
+      }
+      offset = dataOffset + chunkLength + (chunkLength & 1);
+    }
+  }
+
+  if (!dimensions || dimensions.width < 1 || dimensions.height < 1 ||
+      dimensions.width > MAX_PHOTO_DIMENSION || dimensions.height > MAX_PHOTO_DIMENSION ||
+      dimensions.width * dimensions.height > MAX_PHOTO_PIXELS) return null;
+  return dimensions;
+}
+
+async function inspectPhotoDimensions(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (!parsePhotoDimensions(bytes, file.type)) {
+    throw new Error("No se pudieron validar las dimensiones de la foto o supera 16 megapíxeles.");
+  }
+}
+
+function isValidImageRef(reference) {
+  return Boolean(reference && typeof reference.id === "string" && /^[0-9a-f-]{36}$/i.test(reference.id) &&
+    ["image/jpeg", "image/png", "image/webp"].includes(reference.mimeType));
+}
+
+function photoSupportedBy(modelId = $("modelSelect")?.value) {
+  return modelId === "openrouter/free" || modelCapabilities.get(modelId)?.supportsVision === true;
+}
+
+function updatePhotoControl() {
+  const button = $("attachPhoto");
+  if (!button) return;
+  button.disabled = busy || photoProcessing || !photoSupportedBy();
+  button.title = !photoSupportedBy()
+    ? "Elige un modelo gratuito con visión para adjuntar fotos."
+    : "Adjuntar una foto JPEG, PNG o WEBP";
+}
+
+function revokePhotoUrl(id) {
+  const url = photoObjectUrls.get(id);
+  if (url) URL.revokeObjectURL(url);
+  photoObjectUrls.delete(id);
+}
+
+function imageIdsIn(messages) {
+  return (messages || []).map(message => message?.imageRef?.id).filter(id => typeof id === "string");
+}
+
+async function removeStoredImages(ids) {
+  const uniqueIds = [...new Set(ids)];
+  for (const id of uniqueIds) {
+    revokePhotoUrl(id);
+    try { await globalThis.DarkImageStore?.remove(id); }
+    catch (error) { console.warn("No se pudo borrar una foto local:", error); }
+  }
+}
+
+function closeSidebar(restoreFocus = false) {
+  $("sidebar").classList.remove("open");
+  $("sidebarBackdrop").hidden = true;
+  $("menuBtn").setAttribute("aria-expanded", "false");
+  $("menuBtn").setAttribute("aria-label", "Abrir menú");
+  if (restoreFocus) $("menuBtn").focus();
+}
+
+function setSidebarOpen(open) {
+  $("sidebar").classList.toggle("open", open);
+  $("sidebarBackdrop").hidden = !open;
+  $("menuBtn").setAttribute("aria-expanded", String(open));
+  $("menuBtn").setAttribute("aria-label", open ? "Cerrar menú" : "Abrir menú");
+  if (open) $("newChat").focus();
+}
+
 // ======================================
 // HISTORIAL
 // ======================================
@@ -165,7 +306,7 @@ function renderList() {
       activeId = chat.id;
       if (freeModelIds.has(chat.model)) $("modelSelect").value = chat.model;
       renderAll();
-      $("sidebar").classList.remove("open");
+      closeSidebar();
     };
 
     const rename = document.createElement("button");
@@ -190,7 +331,9 @@ function renderList() {
     remove.setAttribute("aria-label", `Eliminar ${chat.title}`);
     remove.onclick = () => {
       if (!confirm(`¿Eliminar «${chat.title}»? Esta acción no se puede deshacer.`)) return;
+      const removedImageIds = imageIdsIn(chat.messages);
       chats = chats.filter(item => item.id !== chat.id);
+      void removeStoredImages(removedImageIds);
       if (activeId === chat.id) activeId = chats[0]?.id || null;
       save(chats[0] || { id: "local-only" });
       renderAll();
@@ -598,7 +741,25 @@ function renderMessages() {
     if (message.role === "assistant") {
       renderAssistantContent(bubble, message, () => retryResponse(messageIndex));
     } else {
-      bubble.textContent = message.content;
+      if (isValidImageRef(message.imageRef)) {
+        const image = document.createElement("img");
+        image.className = "message-image";
+        image.dataset.imageId = message.imageRef.id;
+        image.alt = `Foto adjunta: ${String(message.imageRef.name || "imagen").slice(0, 120)}`;
+        image.loading = "lazy";
+        bubble.append(image);
+      }
+      if (message.content) {
+        const text = document.createElement("div");
+        text.className = "message-text";
+        text.textContent = message.content;
+        bubble.append(text);
+      } else if (isValidImageRef(message.imageRef)) {
+        const label = document.createElement("div");
+        label.className = "image-message-label";
+        label.textContent = "Foto adjunta";
+        bubble.append(label);
+      }
     }
 
     row.append(bubble);
@@ -658,12 +819,16 @@ function renderMessages() {
       editButton.setAttribute("aria-label", "Editar y reenviar este mensaje");
       editButton.onclick = async () => {
         const revised = prompt("Edita el mensaje y vuelve a enviarlo:", message.content);
-        if (!revised?.trim() || busy) return;
+        const retainedImageRef = isValidImageRef(message.imageRef) ? message.imageRef : null;
+        if ((!revised?.trim() && !retainedImageRef) || busy) return;
         const activeChat = current();
+        const removedImageIds = imageIdsIn(activeChat.messages.slice(messageIndex))
+          .filter(id => id !== retainedImageRef?.id);
         activeChat.messages = activeChat.messages.slice(0, messageIndex);
         save();
         renderAll();
-        await send(revised);
+        await removeStoredImages(removedImageIds);
+        await send(revised, { imageRef: retainedImageRef });
       };
       row.append(editButton);
     }
@@ -689,6 +854,27 @@ function renderMessages() {
 
   $("conversation").scrollTop =
     $("conversation").scrollHeight;
+  void hydrateMessageImages();
+}
+
+async function hydrateMessageImages() {
+  const images = [...messagesEl.querySelectorAll("img[data-image-id]")];
+  for (const image of images) {
+    const id = image.dataset.imageId;
+    try {
+      let url = photoObjectUrls.get(id);
+      if (!url) {
+        const record = await globalThis.DarkImageStore?.get(id);
+        if (!record?.blob || !image.isConnected) continue;
+        url = URL.createObjectURL(record.blob);
+        photoObjectUrls.set(id, url);
+      }
+      if (image.isConnected) image.src = url;
+    } catch (error) {
+      if (image.isConnected) image.alt = "Foto no disponible en el almacenamiento local.";
+      console.warn("No se pudo cargar una foto del historial:", error);
+    }
+  }
 }
 
 function renderAll() {
@@ -701,7 +887,7 @@ function renderAll() {
 // ======================================
 
 function openProjects() {
-  $("sidebar").classList.remove("open");
+  closeSidebar();
 
   $("projectWorkspace").hidden = false;
   document.querySelector(".app").hidden = true;
@@ -1208,15 +1394,45 @@ function buildRequestHistory(messages) {
     message &&
     ["user", "assistant"].includes(message.role) &&
     typeof message.content === "string" &&
-    message.content.trim() &&
+    (message.content.trim() || isValidImageRef(message.imageRef)) &&
     !message.streaming
   ).slice(-30);
   for (const message of candidates.reverse()) {
     if (message.content.length > remaining) break;
-    selected.push({ role: message.role, content: message.content });
+    selected.push({
+      role: message.role,
+      content: message.content,
+      ...(isValidImageRef(message.imageRef) ? { imageRef: message.imageRef } : {})
+    });
     remaining -= message.content.length;
   }
   return selected.reverse();
+}
+
+async function buildOpenRouterHistory(messages) {
+  const history = buildRequestHistory(messages);
+  const attachedMessages = history.filter(message => isValidImageRef(message.imageRef));
+  const selectedImageMessage = attachedMessages.at(-1);
+  const reference = selectedImageMessage?.imageRef;
+  for (const message of history) delete message.imageRef;
+  if (!selectedImageMessage) return history;
+
+  const record = await globalThis.DarkImageStore?.get(reference.id);
+  if (!record?.blob || record.blob.size > MAX_COMPRESSED_PHOTO_BYTES || record.blob.type !== reference.mimeType) {
+    throw new Error("No se encontró una foto válida en el almacenamiento local. Vuelve a adjuntarla.");
+  }
+
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("No se pudo preparar la foto."));
+    reader.onerror = () => reject(new Error("No se pudo leer la foto guardada."));
+    reader.readAsDataURL(record.blob);
+  });
+  const parts = [];
+  if (selectedImageMessage.content.trim()) parts.push({ type: "text", text: selectedImageMessage.content });
+  parts.push({ type: "image_url", image_url: { url: dataUrl } });
+  selectedImageMessage.content = parts;
+  return history;
 }
 
 async function consumeChatEventStream(response, onEvent) {
@@ -1277,12 +1493,17 @@ function scheduleStreamingRender(chat) {
   });
 }
 
-async function send(text, { appendUser = true, modeOverride = null } = {}) {
+async function send(text, { appendUser = true, modeOverride = null, imageRef = null } = {}) {
   const content = String(text || "").trim();
-  if (!content || busy) return;
+  const photo = isValidImageRef(imageRef) ? imageRef : (appendUser ? pendingPhoto : null);
+  if ((!content && !photo) || busy) return;
   if (!current()) newChat();
   const chat = current();
   const requestMode = modeOverride || $("modeSelect").value || chat.mode || "general";
+  if (photo && !photoSupportedBy(chat.model)) {
+    toast("El modelo de este chat no declara compatibilidad con fotos. Elige OpenRouter Free · automático o un modelo con visión.");
+    return;
+  }
   if (!freeModelIds.has(chat.model)) {
     toast("Este modelo ya no está disponible gratis. Elige una opción disponible para abrir un chat nuevo.");
     return;
@@ -1292,13 +1513,22 @@ async function send(text, { appendUser = true, modeOverride = null } = {}) {
     chat.messages.push({
       role: "user",
       content,
-      mode: requestMode
+      mode: requestMode,
+      ...(photo ? { imageRef: photo } : {})
     });
+  }
+
+  if (photo && pendingPhoto?.id === photo.id) {
+    pendingPhoto = null;
+    if (pendingPhotoObjectUrl) URL.revokeObjectURL(pendingPhotoObjectUrl);
+    pendingPhotoObjectUrl = null;
+    $("photoAttachment").hidden = true;
+    $("photoStatus").textContent = "Foto añadida al mensaje.";
   }
 
   if (chat.title === "Nuevo chat") {
     chat.title =
-      content.slice(0, 34) +
+      (content || "Foto adjunta").slice(0, 34) +
       (content.length > 34 ? "…" : "");
   }
   const assistantMessage = {
@@ -1318,6 +1548,7 @@ async function send(text, { appendUser = true, modeOverride = null } = {}) {
   save(chat);
   renderAll();
   $("sendBtn").disabled = true;
+  updatePhotoControl();
   $("stopBtn").hidden = false;
   $("modelSelect").disabled = true;
   try {
@@ -1325,7 +1556,7 @@ async function send(text, { appendUser = true, modeOverride = null } = {}) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: buildRequestHistory(chat.messages),
+        messages: await buildOpenRouterHistory(chat.messages),
         model: chat.model,
         mode: requestMode,
         personality: settings.personality,
@@ -1389,6 +1620,7 @@ async function send(text, { appendUser = true, modeOverride = null } = {}) {
     $("sendBtn").disabled = false;
     $("stopBtn").hidden = true;
     $("modelSelect").disabled = false;
+    updatePhotoControl();
     save(chat);
     renderAll();
   }
@@ -1409,10 +1641,11 @@ async function retryResponse(errorIndex) {
   if (!previousUser) return;
 
   const prompt = previousUser.content;
+  const retainedImageRef = isValidImageRef(previousUser.imageRef) ? previousUser.imageRef : null;
   chat.messages = chat.messages.slice(0, previousUserIndex + 1);
   save();
   renderAll();
-  await send(prompt, { appendUser: false, modeOverride: previousUser.mode || $("modeSelect").value });
+  await send(prompt, { appendUser: false, modeOverride: previousUser.mode || $("modeSelect").value, imageRef: retainedImageRef });
 }
 
 async function loadModels() {
@@ -1425,11 +1658,15 @@ async function loadModels() {
     if (!Array.isArray(data.models) || !data.models.length) return;
     const savedModel = localStorage.getItem(STORAGE_MODEL);
     freeModelIds = new Set(data.models.map(model => model.id));
+    modelCapabilities = new Map(data.models.map(model => [model.id, {
+      supportsVision: model.supportsVision === true,
+      dynamicVisionRouting: model.dynamicVisionRouting === true
+    }]));
     select.replaceChildren();
     data.models.forEach(model => {
       const option = document.createElement("option");
       option.value = model.id;
-      option.textContent = model.name;
+      option.textContent = model.name + (model.supportsVision ? " · visión" : "");
       select.append(option);
     });
     const activeModel = current()?.model;
@@ -1439,18 +1676,138 @@ async function loadModels() {
     if (current() && !activeExists) newChat();
     if (!current()) newChat();
     select.addEventListener("change", () => {
+      const active = current();
+      if (pendingPhoto && !photoSupportedBy(select.value)) {
+        select.value = active?.model || "openrouter/free";
+        toast("Quita la foto o elige un modelo con visión para adjuntarla.");
+        updatePhotoControl();
+        return;
+      }
       try { localStorage.setItem(STORAGE_MODEL, select.value); }
       catch (error) { console.warn("No se pudo guardar el modelo seleccionado:", error); }
-      const active = current();
       if (active?.model !== select.value) {
         if (active) save(active);
         newChat();
         toast(`Nuevo chat con ${select.selectedOptions[0]?.textContent || select.value}.`);
       }
+      updatePhotoControl();
     });
+    updatePhotoControl();
   } catch (error) {
     console.warn("El selector de modelos usa la opción predeterminada:", error);
+    updatePhotoControl();
   }
+}
+
+async function decodePhoto(file) {
+  if (typeof createImageBitmap === "function") {
+    try { return await createImageBitmap(file); } catch {}
+  }
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("No se pudo abrir la imagen seleccionada."));
+    };
+    image.src = objectUrl;
+  });
+}
+
+async function canvasBlob(canvas, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("No se pudo comprimir la foto.")), "image/jpeg", quality);
+  });
+}
+
+async function compressPhoto(file) {
+  const image = await decodePhoto(file);
+  try {
+    for (const maxSide of [1600, 1280, 960]) {
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) throw new Error("Este navegador no permite preparar la foto.");
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      for (const quality of [0.84, 0.74, 0.64, 0.54]) {
+        const blob = await canvasBlob(canvas, quality);
+        if (blob.type === "image/jpeg" && blob.size <= MAX_COMPRESSED_PHOTO_BYTES) return blob;
+      }
+    }
+    throw new Error("La foto sigue superando 600 KiB tras comprimirla. Elige una imagen más pequeña.");
+  } finally {
+    image.close?.();
+  }
+}
+
+async function handlePhotoSelection(event) {
+  const file = event.currentTarget.files?.[0];
+  event.currentTarget.value = "";
+  if (!file) return;
+  if (!photoSupportedBy()) {
+    toast("El modelo seleccionado no admite fotos. Elige un modelo con visión.");
+    return;
+  }
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    toast("Solo se admiten fotos JPEG, PNG o WEBP.");
+    return;
+  }
+  if (file.size <= 0 || file.size > MAX_SOURCE_PHOTO_BYTES) {
+    toast("La foto original debe pesar como máximo 10 MiB.");
+    return;
+  }
+
+  photoProcessing = true;
+  updatePhotoControl();
+  $("photoStatus").textContent = "Comprimiendo y guardando la foto en este navegador…";
+  try {
+    await inspectPhotoDimensions(file);
+    const blob = await compressPhoto(file);
+    if (!photoSupportedBy()) throw new Error("El modelo seleccionado ya no admite fotos.");
+    const reference = {
+      id: makeId(),
+      name: String(file.name || "foto").slice(0, 120),
+      mimeType: blob.type,
+      size: blob.size
+    };
+    await globalThis.DarkImageStore.save({ ...reference, blob, savedAt: new Date().toISOString() });
+    const oldId = pendingPhoto?.id;
+    if (pendingPhotoObjectUrl) URL.revokeObjectURL(pendingPhotoObjectUrl);
+    pendingPhoto = reference;
+    pendingPhotoObjectUrl = URL.createObjectURL(blob);
+    $("photoPreview").src = pendingPhotoObjectUrl;
+    $("photoName").textContent = `${reference.name} · ${(reference.size / 1024).toFixed(0)} KiB`;
+    $("photoAttachment").hidden = false;
+    $("photoStatus").textContent = `Foto preparada: ${reference.name}.`;
+    if (oldId) void removeStoredImages([oldId]);
+  } catch (error) {
+    toast(error.message || "No se pudo preparar la foto.");
+    $("photoStatus").textContent = error.message || "No se pudo preparar la foto.";
+  } finally {
+    photoProcessing = false;
+    updatePhotoControl();
+  }
+}
+
+async function discardPendingPhoto() {
+  const id = pendingPhoto?.id;
+  pendingPhoto = null;
+  if (pendingPhotoObjectUrl) URL.revokeObjectURL(pendingPhotoObjectUrl);
+  pendingPhotoObjectUrl = null;
+  $("photoAttachment").hidden = true;
+  $("photoPreview").removeAttribute("src");
+  $("photoName").textContent = "";
+  if (id) await removeStoredImages([id]);
+  $("photoStatus").textContent = "Foto quitada.";
+  updatePhotoControl();
 }
 
 function initializeModePicker() {
@@ -1541,6 +1898,7 @@ async function initializeApplication() {
 }
 
 function openPreferences() {
+  closeSidebar();
   $("personalitySelect").value = settings.personality;
   $("emojiLevelSelect").value = settings.emojiLevel;
   const dialog = $("preferencesDialog");
@@ -1574,10 +1932,17 @@ $("useSources").addEventListener("change", () => {
     catch { toast("No se pudo guardar esta preferencia."); }
   }
 });
-$("clearGuestChatsBtn").addEventListener("click", () => {
+$("clearGuestChatsBtn").addEventListener("click", async () => {
   if (!confirm("¿Borrar todos los chats guardados en este navegador? No podrás recuperarlos.")) return;
+  const imageIds = [...chats.flatMap(chat => imageIdsIn(chat.messages)), pendingPhoto?.id].filter(Boolean);
   chats = [];
   activeId = null;
+  pendingPhoto = null;
+  if (pendingPhotoObjectUrl) URL.revokeObjectURL(pendingPhotoObjectUrl);
+  pendingPhotoObjectUrl = null;
+  $("photoAttachment").hidden = true;
+  await removeStoredImages(imageIds);
+  try { await globalThis.DarkImageStore?.clear(); } catch {}
   save({ id: "local-only" });
   renderAll();
   toast("Se borró el historial de este navegador.");
@@ -1587,6 +1952,11 @@ $("chatForm").addEventListener("submit", event => {
   event.preventDefault();
   send(promptEl.value);
 });
+$("attachPhoto").addEventListener("click", () => {
+  if (!$("attachPhoto").disabled) $("photoInput").click();
+});
+$("photoInput").addEventListener("change", handlePhotoSelection);
+$("removePhoto").addEventListener("click", () => { void discardPendingPhoto(); });
 
 promptEl.addEventListener("input", () => {
   promptEl.style.height = "auto";
@@ -1602,7 +1972,10 @@ promptEl.addEventListener("keydown", event => {
   }
 });
 
-$("newChat").onclick = newChat;
+$("newChat").onclick = () => {
+  newChat();
+  closeSidebar();
+};
 
 $("searchChats").addEventListener("input", renderList);
 
@@ -1613,8 +1986,10 @@ $("stopBtn").addEventListener("click", () => {
 $("clearBtn").onclick = () => {
   if (!current()) return;
 
+  const removedImageIds = imageIdsIn(current().messages);
   current().messages = [];
   current().title = "Nuevo chat";
+  void removeStoredImages(removedImageIds);
 
   save();
   renderAll();
@@ -1623,8 +1998,12 @@ $("clearBtn").onclick = () => {
 };
 
 $("menuBtn").onclick = () => {
-  $("sidebar").classList.toggle("open");
+  setSidebarOpen(!$("sidebar").classList.contains("open"));
 };
+$("sidebarBackdrop").addEventListener("click", () => closeSidebar(true));
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && $("sidebar").classList.contains("open")) closeSidebar(true);
+});
 
 $("openProjects").onclick = openProjects;
 $("closeProjects").onclick = closeProjects;

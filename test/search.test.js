@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSourceContext, searchPublicSources } from "../src/search.js";
+import { breventReferencesForQuery, buildSourceContext, searchPublicSources } from "../src/search.js";
 
 function response(data) {
   return { ok: true, json: async () => data };
@@ -43,4 +43,12 @@ test("el contexto no afirma que encontró fuentes si no hubo enlaces", () => {
   const context = buildSourceContext([], { github: false, stackoverflow: true });
   assert.match(context, /no se recibieron resultados enlazables/);
   assert.match(context, /no digas que encontraste o verificaste fuentes/i);
+});
+
+test("las consultas sobre Brevent añaden solo enlaces oficiales verificables", () => {
+  const references = breventReferencesForQuery("¿Comandos Brevent para rendimiento?");
+  assert.equal(references.length, 3);
+  assert.ok(references.every(reference => new URL(reference.url).hostname === "github.com"));
+  assert.ok(references.some(reference => reference.url.includes("Exec-Command-via-Brevent")));
+  assert.deepEqual(breventReferencesForQuery("optimizar batería Android"), []);
 });

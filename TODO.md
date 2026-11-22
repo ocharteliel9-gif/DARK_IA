@@ -20,6 +20,7 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [ ] Se admiten PDF, TXT, DOCX, XLSX, CSV, JSON, HTML, CSS, JS y ZIP cuando sea seguro; los archivos se procesan como contexto real para responder preguntas.
 - [ ] Hay límites razonables de tamaño/duración y validación de formato/contenido.
 - [ ] El procesamiento real usa almacenamiento temporal seguro, limpieza y conexión con IA; no basta con un botón de carga.
+- [x] El chat permite adjuntar una foto JPEG, PNG o WEBP y verla en la conversación; el original no supera 10 MiB ni 16 megapíxeles, se validan sus dimensiones antes de decodificarlo y se comprime localmente a 600 KiB o menos. El blob se guarda en IndexedDB, no en `localStorage`, y solo se envía cuando se solicita analizarlo con un modelo que declara visión o con el router gratuito multimodal; hay validación de MIME/firma y límites en el servidor.
 
 ## 4. Modo invitado y privacidad por navegador
 - [x] DARK IA abre directamente sin inicio de sesión con Google ni cuenta; el backend no monta OAuth ni expone rutas de sesión.
@@ -47,6 +48,7 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [ ] No se anuncian herramientas no conectadas/configuradas.
 - [x] Cuando el usuario activa fuentes, el servidor consulta GitHub REST (repositorios públicos) y Stack Overflow API; devuelve hasta tres resultados por sitio con dominio/enlace permitidos, timeout, cuota y avisos de indisponibilidad; los resultados son contenido externo no confiable.
 - [x] Las consultas de fuentes no se presentan como búsqueda universal de internet ni como acceso a código GitHub privado.
+- [x] Las preguntas sobre Brevent incluyen referencias oficiales verificables y orientación prudente de rendimiento; no se inventan comandos universales ni se presentan recomendaciones destructivas o no oficiales como instrucciones seguras.
 
 ## 8. Memoria
 - [ ] La memoria por usuario recuerda preferencias/proyectos, recupera conversaciones y contexto, organiza/actualiza recuerdos y permite consultar/gestionar datos.
@@ -82,6 +84,7 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [ ] Arquitectura mantenible y escalable que conserva funciones actuales.
 - [x] Dependencias de API/servicio/permisos/configuración manual se indican explícitamente.
 - [x] El diseño propio es más llamativo, mantiene tema rojo/negro y disposición tipo centro de control inspirada solo en patrones generales de productividad; no copia marca ni activos de Manus.
+- [x] El menú conserva chats, invitado, ajustes y Studio, y recibe un acabado futurista, limpio, responsive y accesible sin romper sus controles existentes.
 - [x] La versión visible y el título del producto dicen “DARK IA 1.0”; también se corrigen las etiquetas visibles de Studio, sin modificar versiones históricas del código.
 
 ## 14. Pruebas antes de declarar funciones terminadas

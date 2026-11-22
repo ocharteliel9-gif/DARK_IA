@@ -86,6 +86,30 @@ test("el chat público informa si falta la clave del proveedor, sin pedir login"
   assert.match(data.error, /OPENROUTER_API_KEY/);
 });
 
+test("el endpoint acepta una foto válida hasta verificar proveedor y rechaza MIME falso", async () => {
+  const validImage = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString("base64")}`;
+  const validResponse = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: [
+      { type: "text", text: "¿Qué aparece aquí?" },
+      { type: "image_url", image_url: { url: validImage } }
+    ] }] })
+  });
+  assert.equal(validResponse.status, 503);
+  assert.match((await validResponse.json()).error, /OPENROUTER_API_KEY/);
+
+  const invalidResponse = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: [
+      { type: "image_url", image_url: { url: validImage.replace("image/jpeg", "image/png") } }
+    ] }] })
+  });
+  assert.equal(invalidResponse.status, 400);
+  assert.match((await invalidResponse.json()).error, /Historial de mensajes no válido/);
+});
+
 test("catálogo solo expone los modelos permitidos y un default válido", async () => {
   const response = await fetch(`${baseUrl}/api/models`);
   const data = await response.json();

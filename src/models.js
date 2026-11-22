@@ -1,12 +1,17 @@
 const MODELS_ENDPOINT = process.env.OPENROUTER_MODELS_URL || "https://openrouter.ai/api/v1/models";
 const REFRESH_MS = 10 * 60 * 1000;
-const FALLBACK_MODELS = [{ id: "openrouter/free", name: "OpenRouter Free · automático" }];
+const FALLBACK_MODELS = [{ id: "openrouter/free", name: "OpenRouter Free · automático", supportsVision: true, dynamicVisionRouting: true }];
 let cachedModels = null;
 let cachedAt = 0;
 let refreshPromise = null;
 
 function isZeroPrice(value) {
   return typeof value === "string" && Number(value) === 0;
+}
+
+function supportsVision(item) {
+  return Array.isArray(item?.architecture?.input_modalities) &&
+    item.architecture.input_modalities.some(modality => typeof modality === "string" && modality.toLowerCase() === "image");
 }
 
 export function filterFreeModels(items) {
@@ -16,7 +21,12 @@ export function filterFreeModels(items) {
     if (!item || typeof item.id !== "string" || !/^[a-z0-9._-]+\/[a-z0-9._-]+:[a-z0-9._-]+$/i.test(item.id)) continue;
     if (!item.id.endsWith(":free") || !isZeroPrice(item.pricing?.prompt) || !isZeroPrice(item.pricing?.completion)) continue;
     const name = typeof item.name === "string" ? item.name.slice(0, 100) : item.id;
-    unique.set(item.id, { id: item.id, name: `${name} · gratis (cuota variable)` });
+    unique.set(item.id, {
+      id: item.id,
+      name: `${name} · gratis (cuota variable)`,
+      supportsVision: supportsVision(item),
+      dynamicVisionRouting: false
+    });
   }
   return [...unique.values()].sort((a, b) => a.id === "openrouter/free" ? -1 : b.id === "openrouter/free" ? 1 : a.name.localeCompare(b.name));
 }
@@ -52,4 +62,9 @@ export async function listFreeModels(fetchImpl = fetch, now = Date.now()) {
 export function isFreeModelId(model, models) {
   if (typeof model !== "string") return false;
   return model === "openrouter/free" || (Array.isArray(models) && models.some(item => item.id === model && model.endsWith(":free")));
+}
+
+export function modelSupportsVision(model, models) {
+  if (model === "openrouter/free") return true;
+  return Array.isArray(models) && models.some(item => item.id === model && item.supportsVision === true);
 }

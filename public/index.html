@@ -10,6 +10,7 @@
 </head>
 <body>
   <div class="app">
+    <button class="sidebar-backdrop" id="sidebarBackdrop" type="button" aria-label="Cerrar menú" hidden></button>
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="brand-mark">D</div>
@@ -37,7 +38,7 @@
 
     <main class="main">
       <header class="topbar">
-        <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Abrir menú">☰</button>
+        <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Abrir menú" aria-controls="sidebar" aria-expanded="false">☰</button>
         <div class="mobile-brand">DARK IA <span class="version-chip">1.0</span></div>
         <div class="top-context"><span class="online-dot"></span><span>ASISTENTE PERSONAL</span></div>
         <div class="top-spacer"></div>
@@ -83,10 +84,18 @@
           <label class="sources-toggle" for="useSources" title="Al activarlo, el texto del mensaje se consulta en las APIs públicas de GitHub y Stack Overflow."><input id="useSources" type="checkbox"><span class="toggle-track"><i></i></span><span>Fuentes en vivo</span></label>
           <button class="stop-btn" id="stopBtn" type="button" hidden>■ Detener</button>
         </div>
+        <div class="photo-attachment" id="photoAttachment" hidden>
+          <img id="photoPreview" alt="Vista previa de la foto adjunta">
+          <div class="photo-attachment-info"><strong id="photoName"></strong><small>Se guardará en este navegador y se enviará al proveedor al analizarla.</small></div>
+          <button class="remove-photo" id="removePhoto" type="button" aria-label="Quitar foto adjunta">×</button>
+        </div>
         <form id="chatForm" class="composer">
+          <button class="attach-photo-btn" id="attachPhoto" type="button" aria-label="Adjuntar una foto" title="Adjuntar una foto">＋</button>
+          <input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
           <textarea id="prompt" rows="1" maxlength="12000" placeholder="Escribe un mensaje a DARK IA…" aria-label="Escribe un mensaje"></textarea>
           <button class="send-btn" id="sendBtn" type="submit" aria-label="Enviar mensaje">↑</button>
         </form>
+        <div id="photoStatus" class="visually-hidden" aria-live="polite"></div>
         <div class="disclaimer">Los modelos gratuitos tienen límites y disponibilidad variables. Comprueba la información importante.</div>
       </footer>
     </main>
@@ -162,6 +171,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
+  <script src="/image-store.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

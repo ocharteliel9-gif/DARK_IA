@@ -15,7 +15,7 @@ async function freePort() {
   return port;
 }
 
-test("/api/chat transmite fragmentos SSE sin exponer la clave del servidor", async t => {
+test("/api/chat transmite SSE y reenvía una foto validada sin exponer la clave", async t => {
   let providerRequest;
   const provider = createServer((req, res) => {
     if (req.url === "/models") {
@@ -87,11 +87,15 @@ test("/api/chat transmite fragmentos SSE sin exponer la clave del servidor", asy
   }
   assert.equal(ready, true, "El servidor de streaming no estuvo listo dentro de 8 segundos.");
 
+  const imageDataUrl = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString("base64")}`;
   const response = await fetch(`${appUrl}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      messages: [{ role: "user", content: "Prueba de streaming" }],
+      messages: [{ role: "user", content: [
+        { type: "text", text: "Prueba de streaming con foto" },
+        { type: "image_url", image_url: { url: imageDataUrl } }
+      ] }],
       model: "openrouter/free",
       stream: true
     })
@@ -105,6 +109,10 @@ test("/api/chat transmite fragmentos SSE sin exponer la clave del servidor", asy
   assert.match(eventText, /progresiva/);
   assert.match(eventText, /event: complete/);
   assert.equal(providerRequest.body.stream, true);
+  assert.deepEqual(providerRequest.body.messages.at(-1).content, [
+    { type: "text", text: "Prueba de streaming con foto" },
+    { type: "image_url", image_url: { url: imageDataUrl } }
+  ]);
   assert.equal(providerRequest.headers.authorization, "Bearer test-key-not-for-client");
   assert.doesNotMatch(eventText, /test-key-not-for-client/);
 });

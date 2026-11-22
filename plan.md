@@ -23,11 +23,15 @@ Se conserva el lenguaje visual cyberpunk premium negro/rojo del producto y se lo
 7. Fuentes opcionales: consultar GitHub REST (repositorios públicos) y Stack Exchange API (preguntas de Stack Overflow), limitar resultados, validar URLs HTTPS y delimitar los datos como contenido externo no confiable. Las consultas pueden compartir el texto del usuario con dichos servicios.
 8. Mantener Studio y sus límites; proyectos e instantáneas siguen locales en el perfil de navegador y no constituyen una copia en nube.
 9. Verificar sintaxis, pruebas HTTP, interfaz sin Google, ausencia de rutas de chat remoto y que el backend no revele ni requiera credenciales de identidad. Publicar en el repositorio DARK_IA de GitHub autorizado; no afirmar que se actualizó el despliegue de Render si no se publicó allí.
+10. Extender el chat con adjuntos de imagen acotados: aceptar originales JPEG/PNG/WEBP de hasta 10 MiB y 16 megapíxeles, validar la cabecera y las dimensiones antes de decodificar, comprimir en el navegador a un máximo de 600 KiB, mantener los binarios en IndexedDB del perfil local y enviar una única imagen solo tras acción explícita, en formato `image_url` de OpenRouter. El backend valida MIME, firma, Base64 y tamaño; el catálogo conserva capacidades `architecture.input_modalities`. Los modelos explícitos sin visión no aceptan fotos y `openrouter/free` se deja al router multimodal documentado, con disponibilidad no garantizada.
+11. Para consultas Brevent, añadir referencias preseleccionadas del repositorio y documentación oficial del proyecto, con instrucciones que distingan la activación inicial ADB de ajustes cotidianos en la app. No presentar un comando fijo como universal ni inventar una receta de optimización; búsqueda en vivo de GitHub/Stack Overflow se conserva optativa.
+12. Refinar sidebar y compositor en la interfaz existente mediante tokens/estados y overlay móvil con teclado y ARIA; conservar IDs, modo Programación, Studio, sandbox del iframe y las rutas actuales.
 
 ## Decisiones técnicas, dependencias y límites
 
 - Reutilizar Node.js 20+, Express 4 y el frontend estático. Mantener como dependencias de producción únicamente módulos necesarios para el servidor, validador y proveedor IA.
 - Las claves de proveedor se mantienen solo en servidor. La lista de modelos es una allowlist; cualquier modelo fuera de ella se rechaza.
+- Las imágenes locales permanecen en IndexedDB y no se replican entre dispositivos; se envían al backend y a OpenRouter solo al solicitar análisis. Las cuotas del navegador y del proveedor pueden impedir el guardado o la inferencia.
 - Variables del backend: `PORT`, `NODE_ENV`, `TRUST_PROXY_HOPS` y `OPENROUTER_API_KEY`. No se requieren variables Google, secretos de sesión ni `DATABASE_URL` para el modo invitado.
 - `localStorage` no está cifrado. La separación por ID aleatorio reduce mezclas accidentales de claves, no protege contra otros usuarios del mismo perfil del navegador ni contra software local con acceso a él.
 - La aplicación no sincroniza historiales entre dispositivos ni ofrece restauración de chats. Sin OpenRouter configurado, solo están disponibles las funciones que no requieren inferencia externa, incluido el saludo exacto.
@@ -43,6 +47,7 @@ src/models.js              # catálogo y filtrado de modelos gratuitos
 src/search.js              # consultas limitadas a GitHub y Stack Overflow
 public/index.html          # estructura de chat invitado, ajustes y Studio
 public/app.js              # espacio local, chats, preferencias, modelos y fuentes
+public/image-store.js      # almacenamiento local de blobs de fotos en IndexedDB
 public/styles.css          # sistema visual propio y adaptación móvil
 test/                      # pruebas unitarias y HTTP de API/interfaz
  docs/INTEGRATIONS.md      # modo invitado, claves y límites operativos

@@ -1715,3 +1715,136 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+
+/* Refinamiento profesional del menú y los adjuntos */
+.sidebar {
+  background:
+    radial-gradient(ellipse at 0 0, #fb334a0a, transparent 55%),
+    linear-gradient(180deg, #121722 0%, #0e1118 100%);
+  border-right-color: #292f3b;
+  box-shadow: 8px 0 32px #0002;
+}
+.brand { padding-top: max(2px, env(safe-area-inset-top)); }
+.side-label { margin-top: 24px; font-size: 9px; font-weight: 750; }
+.chat-list { min-height: 0; overscroll-behavior: contain; }
+.chat-item { min-height: 40px; margin: 2px 0; transition: background .16s ease, border-color .16s ease; }
+.chat-item.active { border: 1px solid #fb526628; }
+.chat-title { line-height: 1.4; }
+.side-bottom { padding-top: 12px; border-top: 1px solid #282d38; }
+.user-chip { padding: 4px 3px; }
+.side-setting-btn { min-height: 36px; }
+.side-setting-btn:focus-visible,
+.chat-title:focus-visible,
+.chat-action:focus-visible,
+.attach-photo-btn:focus-visible,
+.remove-photo:focus-visible,
+.sidebar-backdrop:focus-visible {
+  outline: 2px solid #ff7382;
+  outline-offset: 2px;
+}
+
+.sidebar-backdrop { display: none; }
+.attach-photo-btn {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #343a47;
+  border-radius: 11px;
+  background: #1c2029;
+  color: #d2d5dd;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color .18s ease, color .18s ease, background .18s ease;
+}
+.attach-photo-btn:hover:not(:disabled) { border-color: #a34453; color: #ff8a97; background: #241a21; }
+.attach-photo-btn:disabled { cursor: not-allowed; opacity: .4; }
+.photo-attachment {
+  width: min(790px, 100%);
+  margin: 0 auto 8px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #363b47;
+  border-radius: 12px;
+  background: linear-gradient(120deg, #171a22, #12151c);
+}
+.photo-attachment[hidden] { display: none; }
+.photo-attachment > img {
+  width: 54px;
+  height: 54px;
+  flex: none;
+  border: 1px solid #444a57;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #0c0e13;
+}
+.photo-attachment-info { min-width: 0; display: grid; gap: 2px; flex: 1; }
+.photo-attachment-info strong { overflow: hidden; color: #e7e8ed; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.photo-attachment-info small { color: #959ba8; font-size: 10px; line-height: 1.35; }
+.remove-photo {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 1px solid #383d48;
+  border-radius: 8px;
+  background: #1d2028;
+  color: #c6c9d1;
+  font-size: 20px;
+  cursor: pointer;
+}
+.remove-photo:hover { border-color: #a34453; color: #ff8793; }
+.message-image {
+  display: block;
+  width: min(100%, 360px);
+  max-height: 320px;
+  margin: 0 0 7px;
+  border: 1px solid #363b47;
+  border-radius: 10px;
+  object-fit: contain;
+  background: #0d1016;
+}
+.message-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.image-message-label { margin-top: 4px; color: #aeb4c0; font-size: 10px; }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 700px) {
+  .sidebar { z-index: 60; padding-top: max(18px, env(safe-area-inset-top)); }
+  .sidebar-backdrop {
+    position: fixed;
+    z-index: 59;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: #05070bd1;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    cursor: pointer;
+  }
+  .sidebar-backdrop[hidden] { display: none; }
+  .chat-item { min-height: 44px; }
+  .photo-attachment { width: 100%; }
+  .photo-attachment-info small { max-width: 50vw; }
+  .message-image { max-height: min(44vh, 300px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-item, .attach-photo-btn { transition: none; }
+}
