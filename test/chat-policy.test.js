@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EMOJI_INSTRUCTIONS, EXACT_GREETING, isExactGreeting, isValidAssistantPreferences, PERSONALITIES } from "../src/chat-policy.js";
+import { EMOJI_INSTRUCTIONS, EXACT_GREETING, isExactGreeting, isValidAssistantPreferences, PERSONALITIES, PROFESSIONAL_HONESTY_POLICY } from "../src/chat-policy.js";
 
 test("hola aislado usa respuesta literal sin depender de OpenRouter", () => {
   assert.equal(EXACT_GREETING, "Hola soy una IA creada por vip modifier un creador de aplicaciones para el rendimiento no tan conocido");
@@ -36,4 +36,10 @@ test("alegre es cálido y positivo; frío/directo es conciso sin hostilidad", ()
   assert.match(PERSONALITIES.cheerful, /sin exagerar/i);
   assert.match(PERSONALITIES.direct, /conciso/i);
   assert.match(PERSONALITIES.direct, /evita insultos/i);
+});
+
+test("la política profesional exige sinceridad y no atribuye conciencia o autonomía falsa", () => {
+  assert.match(PROFESSIONAL_HONESTY_POLICY, /no inventes fuentes/i);
+  assert.match(PROFESSIONAL_HONESTY_POLICY, /no afirmes tener conciencia/i);
+  assert.match(PROFESSIONAL_HONESTY_POLICY, /incertidumbre/i);
 });

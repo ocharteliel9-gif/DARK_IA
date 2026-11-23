@@ -1,5 +1,6 @@
 const MODELS_ENDPOINT = process.env.OPENROUTER_MODELS_URL || "https://openrouter.ai/api/v1/models";
 const REFRESH_MS = 10 * 60 * 1000;
+const DEFAULT_MODEL = "openrouter/free";
 const FALLBACK_MODELS = [{ id: "openrouter/free", name: "OpenRouter Free · automático", supportsVision: true, dynamicVisionRouting: true }];
 let cachedModels = null;
 let cachedAt = 0;
@@ -62,6 +63,12 @@ export async function listFreeModels(fetchImpl = fetch, now = Date.now()) {
 export function isFreeModelId(model, models) {
   if (typeof model !== "string") return false;
   return model === "openrouter/free" || (Array.isArray(models) && models.some(item => item.id === model && model.endsWith(":free")));
+}
+
+export function resolveFreeModel(requestedModel, models) {
+  if (requestedModel === undefined || requestedModel === null || requestedModel === "") return DEFAULT_MODEL;
+  if (requestedModel === DEFAULT_MODEL) return DEFAULT_MODEL;
+  return isFreeModelId(requestedModel, models) ? requestedModel : null;
 }
 
 export function modelSupportsVision(model, models) {

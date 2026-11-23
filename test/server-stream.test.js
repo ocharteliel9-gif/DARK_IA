@@ -17,14 +17,23 @@ async function freePort() {
 
 test("/api/chat transmite SSE y reenvía una foto validada sin exponer la clave", async t => {
   let providerRequest;
+  let chatCompletionCount = 0;
   const provider = createServer((req, res) => {
     if (req.url === "/models") {
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ data: [{
-        id: "openai/test-model:free",
-        name: "Test model",
-        pricing: { prompt: "0", completion: "0" }
-      }] }));
+      res.end(JSON.stringify({ data: [
+        {
+          id: "openai/test-model:free",
+          name: "Test model",
+          architecture: { input_modalities: ["text", "image"] },
+          pricing: { prompt: "0", completion: "0" }
+        },
+        {
+          id: "openai/limited-model:free",
+          name: "Limited model",
+          pricing: { prompt: "0", completion: "0" }
+        }
+      ] }));
       return;
     }
 
@@ -32,12 +41,18 @@ test("/api/chat transmite SSE y reenvía una foto validada sin exponer la clave"
       res.writeHead(404).end();
       return;
     }
+    chatCompletionCount += 1;
 
     let body = "";
     req.setEncoding("utf8");
     req.on("data", chunk => { body += chunk; });
     req.on("end", () => {
       providerRequest = { headers: req.headers, body: JSON.parse(body) };
+      if (providerRequest.body.model === "openai/limited-model:free") {
+        res.writeHead(200, { "Content-Type": "text/event-stream" });
+        res.end('data: {"error":{"message":"Cuota gratuita agotada","code":429}}\n\n');
+        return;
+      }
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "X-OpenRouter-Model": "openai/test-model:free"
@@ -96,7 +111,7 @@ test("/api/chat transmite SSE y reenvía una foto validada sin exponer la clave"
         { type: "text", text: "Prueba de streaming con foto" },
         { type: "image_url", image_url: { url: imageDataUrl } }
       ] }],
-      model: "openrouter/free",
+      model: "openai/test-model:free",
       stream: true
     })
   });
@@ -109,10 +124,41 @@ test("/api/chat transmite SSE y reenvía una foto validada sin exponer la clave"
   assert.match(eventText, /progresiva/);
   assert.match(eventText, /event: complete/);
   assert.equal(providerRequest.body.stream, true);
+  assert.equal(providerRequest.body.model, "openai/test-model:free");
   assert.deepEqual(providerRequest.body.messages.at(-1).content, [
     { type: "text", text: "Prueba de streaming con foto" },
     { type: "image_url", image_url: { url: imageDataUrl } }
   ]);
   assert.equal(providerRequest.headers.authorization, "Bearer test-key-not-for-client");
   assert.doesNotMatch(eventText, /test-key-not-for-client/);
+
+  const providerFailure = await fetch(`${appUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "Pregunta normal que agota la cuota" }],
+      model: "openai/limited-model:free",
+      stream: true
+    })
+  });
+  const failureEvents = await providerFailure.text();
+  assert.equal(providerFailure.status, 200);
+  assert.match(failureEvents, /event: error/);
+  assert.match(failureEvents, /HTTP 429/);
+  assert.match(failureEvents, /openai\/limited-model:free/);
+  assert.match(failureEvents, /No se cambió a otro modelo/);
+
+  const invalidResponse = await fetch(`${appUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "Modelo inválido" }],
+      model: "vendor/not-listed:free",
+      stream: true
+    })
+  });
+  const invalidBody = await invalidResponse.json();
+  assert.equal(invalidResponse.status, 409);
+  assert.match(invalidBody.error, /No se cambió automáticamente/);
+  assert.equal(chatCompletionCount, 2, "La selección inválida no debe llegar al proveedor.");
 });

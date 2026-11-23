@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { filterFreeModels, isFreeModelId, modelSupportsVision } from "../src/models.js";
+import { filterFreeModels, isFreeModelId, modelSupportsVision, resolveFreeModel } from "../src/models.js";
 
 test("catálogo solo conserva variantes :free con precio cero en entrada y salida", () => {
   const models = filterFreeModels([
@@ -25,4 +25,15 @@ test("catálogo vacío mantiene solo el router gratuito y no incluye fallback de
   assert.deepEqual(models.map(model => model.id), ["openrouter/free"]);
   assert.equal(isFreeModelId("openrouter/free", models), true);
   assert.equal(isFreeModelId("vendor/commercial", models), false);
+});
+
+test("la selección envía el ID gratuito exacto y nunca sustituye una selección inválida", () => {
+  const models = filterFreeModels([
+    { id: "vendor/exact:free", name: "Exact", pricing: { prompt: "0", completion: "0" } }
+  ]);
+  assert.equal(resolveFreeModel("vendor/exact:free", models), "vendor/exact:free");
+  assert.equal(resolveFreeModel("openrouter/free", models), "openrouter/free");
+  assert.equal(resolveFreeModel(undefined, models), "openrouter/free");
+  assert.equal(resolveFreeModel("vendor/paid", models), null);
+  assert.equal(resolveFreeModel("vendor/removed:free", models), null);
 });

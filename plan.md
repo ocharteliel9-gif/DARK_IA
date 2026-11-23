@@ -54,3 +54,14 @@ test/                      # pruebas unitarias y HTTP de API/interfaz
 ```
 
 El cambio es incremental. No se incluyen ejecución de código de usuario, scraping de páginas, fallback a modelos pagos, almacenamiento remoto de chats ni sincronización entre dispositivos.
+
+
+## Iteración de fiabilidad, descubrimiento de apps y navegación móvil (2026-11-23)
+
+Se conserva la arquitectura existente (cliente estático, Express y OpenRouter); no se finge una mente propia ni autonomía fuera de herramientas conectadas. El asistente usa una política base permanente de profesionalidad y honestidad: diferencia hechos de hipótesis, explicita incertidumbre, no inventa búsquedas, citas, ejecuciones ni capacidades, y admite cuando no puede comprobar algo.
+
+Cada modelo gratuito elegido se envía a OpenRouter usando su ID real; el servidor no sustituye silenciosamente una selección inválida o fallida por otro modelo. `openrouter/free` es el único selector de enrutamiento dinámico y el identificador concreto que respondió se muestra junto al modelo solicitado. Los fallos del proveedor se convierten en mensajes útiles por tipo/status y explican cuándo esperar o seleccionar otro modelo; la lista gratuita puede sufrir cuotas o disponibilidad temporal.
+
+El menú hamburguesa móvil incluye antes del historial de chats la navegación de Chat, Programación/Studio, Explorar apps/APK y el canal oficial de WhatsApp indicado por el usuario. Explorar apps genera enlaces externos con la consulta solicitada para Google Play, F-Droid, APKMirror y búsqueda web general; no descarga, instala, inspecciona ni avala APKs, y muestra orientación de seguridad y de fuentes oficiales. Se conserva el tema oscuro profesional con acentos rojos discretos, sin copiar activos ni diseño de marca externa.
+
+Estructura afectada: `src/chat-policy.js` (política honesta/profesional), `src/models.js`/`server.js` (validación de selección y traducción de errores), `public/index.html`/`public/app.js`/`public/styles.css` (menú y explorador), y `test/` (regresión de selección, errores y navegación). No se añaden APIs comerciales ni nuevas claves secretas.

@@ -44,7 +44,13 @@ export async function consumeOpenRouterStream(body, onDelta = () => {}) {
       const providerMessage = typeof payload.error.message === "string"
         ? payload.error.message
         : "Error durante la generación.";
-      throw new Error(providerMessage);
+      const error = new Error(providerMessage);
+      error.isProviderError = true;
+      const providerStatus = Number(payload.error.code ?? payload.error.status);
+      if (Number.isInteger(providerStatus) && providerStatus >= 400 && providerStatus <= 599) {
+        error.providerStatus = providerStatus;
+      }
+      throw error;
     }
 
     if (typeof payload?.model === "string") model = payload.model;

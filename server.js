@@ -5,10 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateCode } from "./src/code-validator.js";
 import { searchPublicSources, buildSourceContext, breventReferencesForQuery } from "./src/search.js";
-import { listFreeModels, isFreeModelId } from "./src/models.js";
-import { PERSONALITIES, EMOJI_INSTRUCTIONS, EXACT_GREETING, isExactGreeting, isValidAssistantPreferences } from "./src/chat-policy.js";
+import { listFreeModels, resolveFreeModel } from "./src/models.js";
+import { PERSONALITIES, EMOJI_INSTRUCTIONS, PROFESSIONAL_HONESTY_POLICY, EXACT_GREETING, isExactGreeting, isValidAssistantPreferences } from "./src/chat-policy.js";
 import { consumeOpenRouterStream } from "./src/openrouter-stream.js";
 import { getMessageText, messagesHaveImage, validateMessages } from "./src/chat-validation.js";
+import { explainProviderError } from "./src/provider-errors.js";
 
 dotenv.config();
 
@@ -33,8 +34,6 @@ app.use(express.static(path.join(__dirname, "public")));
 const PORT = process.env.PORT || 3000;
 const DEFAULT_MODEL = "openrouter/free";
 const OPENROUTER_URL = process.env.OPENROUTER_URL || "https://openrouter.ai/api/v1/chat/completions";
-const FREE_MODEL_PATTERN = /^[a-z0-9._-]+\/[a-z0-9._-]+:free$/i;
-
 const MODES = {
   general: {
     name: "DARK CHAT",
@@ -67,13 +66,6 @@ ORIENTACIÓN SOBRE BREVENT Y RENDIMIENTO ANDROID (cuando sea pertinente):
 No inventes comandos ni afirmes que existe una receta universal para acelerar Android. Distingue la activación inicial de Brevent mediante el comando ADB que la propia aplicación muestra para esa versión/dispositivo, de la gestión cotidiana de aplicaciones desde Brevent. No sugieras desactivar paquetes del sistema, cambiar propiedades globales, deshabilitar servicios de seguridad ni ejecutar comandos masivos de force-stop como optimización general. Antes de recomendar algo, identifica marca/modelo, versión de Android y síntoma (lentitud, batería, temperatura, notificaciones o red). Advierte que restringir o detener una app puede interrumpir notificaciones, sincronización, ubicación o tareas. Prioriza diagnóstico reversible y documentación oficial; no prometas aumentos de FPS ni que «limpiar RAM» mejore el rendimiento sostenido.
 `;
 
-function getModel(requestedModel, models) {
-  return isFreeModelId(requestedModel, models) &&
-    (requestedModel === "openrouter/free" || FREE_MODEL_PATTERN.test(requestedModel))
-    ? requestedModel
-    : DEFAULT_MODEL;
-}
-
 function createSystemPrompt(mode, personality, emojiLevel, selectedModel, sourceContext = "") {
   const selected = MODES[mode] || MODES.general;
   const personalityInstruction = PERSONALITIES[personality] || PERSONALITIES.professional;
@@ -83,7 +75,8 @@ function createSystemPrompt(mode, personality, emojiLevel, selectedModel, source
 MODELO ELEGIDO PARA ESTE CHAT: ${selectedModel}. No atribuyas capacidades/versiones concretas solo por el nombre del modelo.
 PERSONALIDAD ELEGIDA: ${personalityInstruction}
 USO DE EMOJIS: ${emojiInstruction}
-REGLAS: responde en el idioma del usuario; no inventes información, fuentes ni resultados; no afirmes capacidades que no tienes; no solicites contraseñas ni claves privadas; explica pasos cuando sea útil; reconoce tus límites.
+POLÍTICA PROFESIONAL Y DE HONESTIDAD: ${PROFESSIONAL_HONESTY_POLICY}
+REGLAS: responde en el idioma del usuario; no solicites contraseñas ni claves privadas; explica pasos cuando sea útil.
 MODO ACTUAL: ${selected.name}
 ESPECIALIDAD: ${selected.instruction}
 ${SECURITY_POLICY}
@@ -231,7 +224,7 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
         success: true,
         answer: EXACT_GREETING,
         model: "DARK IA · saludo exacto (sin modelo externo)",
-        selectedModel: getModel(model, []),
+        selectedModel: DEFAULT_MODEL,
         mode,
         usage: null,
         sources: [],
@@ -244,13 +237,19 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       return res.end();
     }
 
+    const availableModels = await listFreeModels();
+    const selectedModel = resolveFreeModel(model, availableModels);
+    if (!selectedModel) {
+      return res.status(409).json({
+        success: false,
+        error: `El modelo seleccionado (${String(model).slice(0, 120)}) ya no está disponible en el catálogo gratuito. No se cambió automáticamente a otro modelo; elige uno vigente para abrir un chat nuevo.`
+      });
+    }
+
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
       return res.status(503).json({ success: false, error: "Falta configurar OPENROUTER_API_KEY en el servidor." });
     }
-
-    const availableModels = await listFreeModels();
-    const selectedModel = getModel(model, availableModels);
     if (hasImage && !availableModels.some(item => item.id === selectedModel && item.supportsVision === true) && selectedModel !== "openrouter/free") {
       return res.status(400).json({ success: false, error: "La foto requiere un modelo que declare compatibilidad con visión. Elige OpenRouter Free · automático u otro modelo con visión." });
     }
@@ -281,17 +280,28 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       ...(stream ? { stream: true } : {})
     };
 
-    const response = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        Accept: stream ? "text/event-stream" : "application/json",
-        "X-Title": "DARK IA 1.0"
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal
-    });
+    let response;
+    try {
+      response = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          Accept: stream ? "text/event-stream" : "application/json",
+          "X-Title": "DARK IA 1.0"
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+    } catch (error) {
+      if (timedOut || clientDisconnected || controller.signal.aborted) throw error;
+      return res.status(502).json({
+        success: false,
+        error: explainProviderError(0, selectedModel, error?.message || "Fallo de conexión con OpenRouter."),
+        selectedModel,
+        providerStatus: null
+      });
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
@@ -299,7 +309,9 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
       console.error("OpenRouter:", response.status, providerError);
       return res.status(502).json({
         success: false,
-        error: providerError
+        error: explainProviderError(response.status, selectedModel, providerError),
+        selectedModel,
+        providerStatus: response.status
       });
     }
 
@@ -340,7 +352,9 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
           writeSseEvent(res, "error", {
             error: timedOut
               ? "La respuesta tardó demasiado. Puedes reintentar sin perder el mensaje."
-              : error?.message || "No se pudo completar la respuesta del proveedor."
+              : error?.isProviderError
+                ? explainProviderError(error.providerStatus, selectedModel, error.message)
+                : error?.message || "No se pudo completar la respuesta del proveedor."
           });
         }
       }

@@ -262,6 +262,48 @@ function setSidebarOpen(open) {
   if (open) $("newChat").focus();
 }
 
+function closeApps() {
+  const dialog = $("appsDialog");
+  if (dialog?.open) dialog.close();
+  $("navApps")?.classList.remove("active");
+}
+
+function openApps() {
+  closeSidebar();
+  $("navChat")?.classList.remove("active");
+  $("navApps")?.classList.add("active");
+  const dialog = $("appsDialog");
+  if (dialog && !dialog.open) dialog.showModal();
+}
+
+function renderAppSearchLinks(query) {
+  const results = $("appSearchResults");
+  results.replaceChildren();
+  const encoded = encodeURIComponent(query.trim());
+  const providers = [
+    { name: "Google Play", detail: "Tienda oficial de Android", url: `https://play.google.com/store/search?q=${encoded}&c=apps`, safe: true },
+    { name: "F-Droid", detail: "Catálogo de software libre", url: `https://search.f-droid.org/?q=${encoded}&lang=es`, safe: true },
+    { name: "APKMirror", detail: "Repositorio de terceros · verifica firma y desarrollador", url: `https://www.apkmirror.com/?s=${encoded}`, safe: false },
+    { name: "Búsqueda web", detail: "Busca el nombre en sitios web", url: `https://www.google.com/search?q=${encoded}`, safe: false }
+  ];
+
+  providers.forEach(provider => {
+    const link = document.createElement("a");
+    link.className = "app-result-link";
+    link.href = provider.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    const name = document.createElement("strong");
+    name.textContent = provider.name;
+    const detail = document.createElement("small");
+    detail.textContent = provider.detail;
+    const action = document.createElement("span");
+    action.textContent = "Abrir ↗";
+    link.append(name, detail, action);
+    results.append(link);
+  });
+}
+
 // ======================================
 // HISTORIAL
 // ======================================
@@ -877,10 +919,20 @@ function renderMessages() {
     if (message.role === "assistant" && message.model) {
       const modelMeta = document.createElement("div");
       modelMeta.className = "model-meta";
-      modelMeta.textContent = "Modelo usado: ";
-      const modelName = document.createElement("strong");
-      modelName.textContent = message.model;
-      modelMeta.append(modelName);
+      if (message.model.startsWith("DARK IA · saludo exacto")) {
+        modelMeta.textContent = "Saludo exacto · respuesta local, sin proveedor externo";
+      } else if (message.selectedModel && message.selectedModel !== message.model) {
+        modelMeta.textContent = message.selectedModel === "openrouter/free"
+          ? "Router solicitado: OpenRouter Free · modelo que respondió: "
+          : `Modelo solicitado: ${message.selectedModel} · modelo que respondió: `;
+        const modelName = document.createElement("strong");
+        modelName.textContent = message.model;
+        modelMeta.append(modelName);
+      } else {
+        modelMeta.textContent = message.selectedModel
+          ? `Modelo solicitado y ejecutado: ${message.selectedModel}`
+          : `Modelo que respondió: ${message.model}`;
+      }
       row.append(modelMeta);
     }
 
@@ -1776,14 +1828,28 @@ async function loadModels() {
     data.models.forEach(model => {
       const option = document.createElement("option");
       option.value = model.id;
-      option.textContent = model.name + (model.supportsVision ? " · visión" : "");
+      option.textContent = model.id === "openrouter/free"
+        ? "OpenRouter Free · router automático (modelo variable)"
+        : `${model.name} · ${model.id}`;
+      option.title = model.id;
       select.append(option);
     });
     const activeModel = current()?.model;
     const activeExists = data.models.some(model => model.id === activeModel);
     const savedExists = data.models.some(model => model.id === savedModel);
+    if (activeModel && !activeExists) {
+      const unavailable = document.createElement("option");
+      unavailable.value = activeModel;
+      unavailable.textContent = `${activeModel} · no aparece en el catálogo actual`;
+      unavailable.title = "No se cambiará este chat automáticamente. Elige otro modelo para crear un chat nuevo.";
+      unavailable.disabled = true;
+      select.append(unavailable);
+    }
     select.value = activeExists ? activeModel : savedExists ? savedModel : data.defaultModel;
-    if (current() && !activeExists) newChat();
+    if (activeModel && !activeExists) {
+      select.value = activeModel;
+      $("modelExplanation").textContent = "Este chat conserva su modelo original; no aparece en el catálogo actual. Elige otro modelo para abrir un chat nuevo.";
+    }
     if (!current()) newChat();
     select.addEventListener("change", () => {
       const active = current();
@@ -1804,7 +1870,18 @@ async function loadModels() {
     });
     updatePhotoControl();
   } catch (error) {
-    console.warn("El selector de modelos usa la opción predeterminada:", error);
+    console.warn("No se pudo actualizar el catálogo de modelos:", error);
+    const activeModel = current()?.model;
+    if (activeModel && activeModel !== "openrouter/free") {
+      const unavailable = document.createElement("option");
+      unavailable.value = activeModel;
+      unavailable.textContent = `${activeModel} · catálogo no disponible`;
+      unavailable.disabled = true;
+      select.append(unavailable);
+      select.value = activeModel;
+      $("modelExplanation").textContent = "No se pudo actualizar el catálogo. Este chat conserva su modelo y no se cambiará automáticamente.";
+    }
+    if (!current()) newChat();
     updatePhotoControl();
   }
 }
@@ -2168,6 +2245,24 @@ document.addEventListener("keydown", event => {
   if (event.key === "Escape" && $("sidebar").classList.contains("open")) closeSidebar(true);
 });
 
+$("navChat").onclick = () => {
+  closeApps();
+  $("navChat").classList.add("active");
+  closeSidebar();
+};
+$("navApps").onclick = openApps;
+$("closeApps").onclick = closeApps;
+$("navWhatsApp").addEventListener("click", () => closeSidebar());
+$("appsDialog").addEventListener("close", () => {
+  $("navApps").classList.remove("active");
+  $("navChat").classList.add("active");
+});
+$("appSearchForm").addEventListener("submit", event => {
+  event.preventDefault();
+  const query = $("appSearchQuery").value.trim();
+  if (!query) return;
+  renderAppSearchLinks(query);
+});
 $("openProjects").onclick = openProjects;
 $("closeProjects").onclick = closeProjects;
 

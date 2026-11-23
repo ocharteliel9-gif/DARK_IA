@@ -128,3 +128,14 @@ Estados: `[x]` comprobado en el repositorio; `[ ]` pendiente; `[~]` avance parci
 - [x] Saludo exacto sin OpenRouter, títulos visibles 1.0, menú refinado y pruebas unitarias/HTTP.
 - [x] `README.md`, `docs/INTEGRATIONS.md` y `.env.example` documentan el modo invitado, el almacenamiento local y el requisito de `OPENROUTER_API_KEY` sin claves secretas.
 - [x] 21 pruebas automatizadas aprobadas; sintaxis JS, `git diff --check` y `npm audit --omit=dev` limpios. GitHub y Render aún no se han actualizado con este cambio.
+
+
+## 17. Fase actual: fiabilidad, profesionalidad y navegación móvil
+- [x] Cuando un proveedor o modelo gratuito falle, el usuario ve una explicación clara en español y una acción razonable; no se cambia silenciosamente el modelo elegido ni se pierde el mensaje enviado. Incluye respuestas HTTP, fallos de conexión y errores incrustados en SSE; está cubierto con proveedor local simulado.
+- [x] Cada modelo de la lista usa su ID real de OpenRouter; las selecciones explícitas inválidas se rechazan en lugar de convertirse al modelo predeterminado. Se distingue el modelo solicitado del modelo que efectivamente respondió; `openrouter/free` se identifica como enrutador automático cuyo modelo subyacente puede variar.
+- [x] El sistema mantiene instrucciones base de profesionalidad y sinceridad: distingue hechos de hipótesis, reconoce incertidumbre, no inventa fuentes, consultas web, resultados, ejecuciones, capacidades ni acciones autónomas. No se afirma que DARK IA tenga mente propia o pueda actuar fuera de las herramientas conectadas.
+- [x] Al abrir el menú móvil con las tres rayas, Chat, Programación/Studio, Explorar apps/APK y el canal de WhatsApp del usuario aparecen antes de la lista de chats; cada control navega o abre su destino y el menú puede cerrarse sin bloquear el chat.
+- [x] La pestaña de apps ayuda a buscar aplicaciones mediante consultas a Google Play, F-Droid, APKMirror y búsqueda web general. Las salidas externas están identificadas; DARK IA no descarga ni instala APKs, no certifica seguridad y recomienda fuentes oficiales, sin presentar resultados externos como verificados por DARK IA.
+- [x] El acabado refina el estilo oscuro profesional solicitado, conserva la identidad de DARK IA y sus funciones existentes, y se adapta a móvil y escritorio sin desbordamientos. Chromium pasó a 320, 375, 390 y 1280 px; no se probó un Android físico.
+- [~] Se observó disponibilidad puntual en el endpoint público antes de esta iteración: `openrouter/free` respondió HTTP 200, una variante concreta devolvió HTTP 502 y otra contestó HTTP 200 con su ID real. Esta nueva traducción de errores se validó con proveedor simulado; no se desplegó ni se volvió a probar esta versión en producción, y los modelos gratuitos pueden fallar temporalmente.
+- [x] No se modificaron contraseñas, autenticación, privacidad local, almacenamiento del historial ni secretos del usuario; las claves del proveedor permanecen solo en el servidor.

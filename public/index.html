@@ -33,6 +33,12 @@
       <button class="new-chat" id="newChat" type="button"><span class="nav-icon">＋</span><span>Nuevo chat</span></button>
       <button class="project-open-btn" id="openProjects" type="button"><span class="nav-icon">&lt;/&gt;</span><span>Entorno de proyectos</span></button>
 
+      <nav class="side-navigation" aria-label="Secciones principales">
+        <button class="side-nav-item active" id="navChat" type="button"><span aria-hidden="true">◉</span> Chat</button>
+        <button class="side-nav-item" id="navApps" type="button"><span aria-hidden="true">⌕</span> Explorar apps / APK</button>
+        <a class="side-nav-item whatsapp-nav" id="navWhatsApp" href="https://whatsapp.com/channel/0029VbE8oRsIt5s5MrRCWu3r" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">↗</span> Canal de WhatsApp</a>
+      </nav>
+
       <div class="side-label">INVITADO · ESTE NAVEGADOR</div>
       <label class="search-wrap"><span aria-hidden="true">⌕</span><input id="searchChats" class="chat-search" type="search" placeholder="Buscar conversaciones…" aria-label="Buscar conversaciones"></label>
       <div id="chatList" class="chat-list"></div>
@@ -64,7 +70,7 @@
           <div class="welcome-logo">D</div>
           <div class="welcome-kicker">DARK IA <span>·</span> MODO INVITADO</div>
           <h1>¿Qué vamos a crear hoy?</h1>
-          <p>Úsala sin iniciar sesión. Tus chats se guardan solo en este navegador.</p>
+          <p>Respuestas claras, profesionales y honestas. Tus chats se guardan solo en este navegador.</p>
 
           <div class="suggestions">
             <button class="suggestion" type="button" data-prompt="Enséñame HTML desde cero con un ejemplo.">
@@ -92,7 +98,8 @@
             </select>
           </label>
           <label class="model-picker" for="modelSelect">Modelo
-            <select id="modelSelect" aria-label="Seleccionar modelo"><option value="openrouter/free">OpenRouter Free · automático</option></select>
+            <select id="modelSelect" aria-label="Seleccionar modelo" aria-describedby="modelExplanation"><option value="openrouter/free">OpenRouter Free · router automático</option></select>
+            <small class="visually-hidden" id="modelExplanation">Las opciones directas envían su ID real; el router automático puede variar el modelo usado.</small>
           </label>
           <label class="sources-toggle" for="useSources" title="Al activarlo, el texto del mensaje se consulta en las APIs públicas de GitHub y Stack Overflow."><input id="useSources" type="checkbox"><span class="toggle-track"><i></i></span><span>Fuentes en vivo</span></label>
           <button class="stop-btn" id="stopBtn" type="button" hidden>■ Detener</button>
@@ -142,6 +149,23 @@
     </label>
       <div class="privacy-note"><span>◈</span><p>Los chats, preferencias y proyectos se guardan en este navegador. No se sincronizan con otros dispositivos; otras personas que usen este mismo perfil podrían verlos.</p></div>
     <button class="preferences-save" id="savePreferences" type="button">Guardar ajustes</button>
+  </dialog>
+
+  <dialog class="apps-dialog" id="appsDialog" aria-labelledby="appsTitle">
+    <div class="preferences-head">
+      <div><span class="settings-kicker">BÚSQUEDA EXTERNA</span><h2 id="appsTitle">Explorar aplicaciones</h2></div>
+      <button id="closeApps" type="button" aria-label="Cerrar explorador">×</button>
+    </div>
+    <p class="preferences-intro">Busca aplicaciones en tiendas y catálogos externos. DARK IA no descarga, instala ni certifica APKs.</p>
+    <form class="app-search-form" id="appSearchForm">
+      <label class="visually-hidden" for="appSearchQuery">Nombre de la app o qué necesitas</label>
+      <input id="appSearchQuery" type="search" maxlength="120" placeholder="Ej.: editor de video sin marca de agua" required>
+      <button type="submit">Buscar</button>
+    </form>
+    <div class="app-search-results" id="appSearchResults" aria-live="polite">
+      <p class="apps-empty">Escribe una app o describe qué necesitas para ver enlaces de búsqueda.</p>
+    </div>
+    <div class="apps-safety"><strong>Seguridad:</strong> prioriza Google Play o F-Droid; confirma el nombre del desarrollador y evita APKs modificados, cracks y permisos que no correspondan. Los resultados se abren en el sitio externo y no han sido verificados por DARK IA.</div>
   </dialog>
 
   <section class="project-workspace" id="projectWorkspace" hidden>
