@@ -10,6 +10,15 @@ El saludo literal «hola» se responde localmente sin clave. Para otras solicitu
 
 Comprobaciones: `npm test`, `node --check server.js`, `node --check public/app.js` y `npm audit --omit=dev`. `TRUST_PROXY_HOPS` debe corresponder al número real de proxies confiables del host; usa cero en conexión local directa.
 
+
+## Módulos especializados
+
+El selector de modo incluye módulos de **Gaming, Modding, Desarrollo de juegos, Unity, Unreal Engine, Godot, Soporte por juego y Diagnóstico técnico**, además de General, Programación y Aprendizaje. Los módulos aplican instrucciones especializadas del lado del servidor y se mantienen compatibles con el chat y el historial existentes.
+
+Para respuestas técnicas, DARK IA debe solicitar juego/aplicación, versión, plataforma, motor o gestor y herramientas solo cuando esos datos cambien la solución. Debe distinguir hechos de hipótesis, incluir pasos de diagnóstico y advertir antes de acciones que puedan afectar archivos o partidas. Se recomienda una copia de seguridad antes de modificar instalaciones o configuraciones.
+
+Los módulos de modding están orientados a modificaciones permitidas, proyectos propios y experiencias de un jugador. No son un sistema de ejecución de mods ni una integración directa con Unity, Unreal, Godot o gestores externos: la generación y revisión de contenido se realiza mediante el modelo seleccionado en OpenRouter. La disponibilidad, precisión y límites dependen de ese proveedor y del contexto que comparta el usuario.
+
 ## Chats y privacidad
 
 Los chats permanecen en `localStorage` en el navegador actual y se separan mediante un identificador aleatorio creado allí. No se guardan en PostgreSQL ni hay una API pública para leer conversaciones. El identificador no verifica quién es la persona: cualquiera con acceso al mismo perfil del navegador puede ver esos chats. Si se cambia de dispositivo, se usa otro perfil o se borran los datos del sitio, el historial no estará disponible.

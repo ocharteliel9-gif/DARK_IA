@@ -10,6 +10,7 @@ import { PERSONALITIES, EMOJI_INSTRUCTIONS, PROFESSIONAL_HONESTY_POLICY, EXACT_G
 import { consumeOpenRouterStream } from "./src/openrouter-stream.js";
 import { getMessageText, messagesHaveImage, validateMessages } from "./src/chat-validation.js";
 import { explainProviderError } from "./src/provider-errors.js";
+import { DOMAIN_MODES, UNIVERSAL_TECHNICAL_WORKFLOW, FAIR_PLAY_POLICY } from "./src/domain-modules.js";
 
 dotenv.config();
 
@@ -34,27 +35,7 @@ app.use(express.static(path.join(__dirname, "public")));
 const PORT = process.env.PORT || 3000;
 const DEFAULT_MODEL = "openrouter/free";
 const OPENROUTER_URL = process.env.OPENROUTER_URL || "https://openrouter.ai/api/v1/chat/completions";
-const MODES = {
-  general: {
-    name: "DARK CHAT",
-    instruction: "Ayuda con consultas generales, ideas, explicaciones y tareas cotidianas. Responde con claridad y precisión."
-  },
-  gaming: {
-    name: "DARK GAMING",
-    instruction: "Eres especialista en videojuegos, estrategias, configuraciones y rendimiento. Adapta las recomendaciones al dispositivo y versión. No inventes FPS ni compatibilidad. No recomiendes hacks, trampas ni robo de cuentas."
-  },
-  knowledge: {
-    name: "DARK KNOWLEDGE",
-    instruction: "Eres un tutor multidisciplinario de ciencia, matemáticas, historia, tecnología y cultura. Explica temas complejos de manera sencilla con ejemplos y pasos."
-  },
-  coding: {
-    name: "DARK CODING",
-    instruction: `Eres un asistente senior de ingeniería de software. Trabajas únicamente con el contexto de proyecto que el usuario haya compartido explícitamente.
-ÁREAS: arquitectura, diseño de APIs, Android, web, HTML/CSS/JavaScript/TypeScript, Node.js, Python, SQL, pruebas, depuración, rendimiento, accesibilidad, revisión de seguridad y documentación.
-PROTOCOLO: identifica objetivo, stack y restricciones; pregunta por datos bloqueantes; busca causa raíz y propone el cambio mínimo; distingue bugs confirmados de hipótesis; entrega cambios con ruta, dependencias, instalación y pruebas sugeridas; nunca afirmes haber ejecutado código sin hacerlo.
-SEGURIDAD: valida entradas en el servidor; no sugieras eval, Function, shell ni procesos privilegiados para ejecutar código de usuario; no expongas claves, tokens, datos personales ni secretos; un prompt no protege recursos del servidor. No inventes acceso a repositorios, terminal, internet, archivos o logs no incluidos en el contexto.`
-  }
-};
+const MODES = DOMAIN_MODES;
 
 const SECURITY_POLICY = `
 POLÍTICA DE SEGURIDAD Y PRIVACIDAD:
@@ -79,6 +60,8 @@ POLÍTICA PROFESIONAL Y DE HONESTIDAD: ${PROFESSIONAL_HONESTY_POLICY}
 REGLAS: responde en el idioma del usuario; no solicites contraseñas ni claves privadas; explica pasos cuando sea útil.
 MODO ACTUAL: ${selected.name}
 ESPECIALIDAD: ${selected.instruction}
+${UNIVERSAL_TECHNICAL_WORKFLOW}
+${FAIR_PLAY_POLICY}
 ${SECURITY_POLICY}
 ${sourceContext}
 OBJETIVO: ofrecer respuestas claras, útiles, honestas y seguras.`;
@@ -122,7 +105,7 @@ app.get("/api/status", (_req, res) => {
 app.get("/api/modes", (_req, res) => {
   res.json({
     success: true,
-    modes: Object.entries(MODES).map(([id, mode]) => ({ id, name: mode.name }))
+    modes: Object.entries(MODES).map(([id, mode]) => ({ id, name: mode.name, description: mode.description }))
   });
 });
 
