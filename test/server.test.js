@@ -123,6 +123,9 @@ test("modos se sirven desde el backend", async () => {
   const data = await response.json();
   assert.equal(response.status, 200);
   assert.ok(data.modes.some(mode => mode.id === "general"));
+  for (const id of ["gaming", "modding", "gamedev", "unity", "unreal", "godot", "game_support", "diagnostics"]) {
+    assert.ok(data.modes.some(mode => mode.id === id), `Falta el modo ${id}`);
+  }
 });
 
 test("validador HTTP comprueba TypeScript sin ejecutar contenido", async () => {
