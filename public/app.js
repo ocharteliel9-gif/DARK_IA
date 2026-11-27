@@ -347,6 +347,9 @@ function renderList() {
     title.onclick = () => {
       activeId = chat.id;
       if (freeModelIds.has(chat.model)) $("modelSelect").value = chat.model;
+      if ([...$("modeSelect").options].some(option => option.value === chat.mode)) {
+        $("modeSelect").value = chat.mode;
+      }
       renderAll();
       closeSidebar();
     };
@@ -2001,7 +2004,7 @@ function initializeModePicker() {
   const select = $("modeSelect");
   if (!select) return;
   const savedMode = localStorage.getItem(STORAGE_MODE);
-  if (["general", "coding", "knowledge", "gaming"].includes(savedMode)) {
+  if ([...select.options].some(option => option.value === savedMode)) {
     select.value = savedMode;
   }
   select.addEventListener("change", () => {
